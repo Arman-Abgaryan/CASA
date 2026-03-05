@@ -25,7 +25,11 @@ import {
   DialogActions,
   TableSortLabel,
   IconButton,
-  Checkbox
+  Checkbox,
+  InputLabel,
+  OutlinedInput,
+  FormControl,
+  FormHelperText,
 } from "@mui/material";
 
 import FilterListIcon from "@mui/icons-material/FilterList";
@@ -35,6 +39,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PendingIcon from "@mui/icons-material/AccessTime";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import DeleteIcon from '@mui/icons-material/Delete';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 import { CheckboxSelection } from "../components/CheckboxSelection";
 
@@ -86,6 +91,11 @@ export default function Transactions() {
     type: "income",
     status: "pending",
   });
+
+  const [openImportModal, setOpenImportModal] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
+  const [csvErrors, setCsvErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (!checkingAuth && !isLoggedIn) {
@@ -226,67 +236,139 @@ export default function Transactions() {
       return 0;
     });
 
-    // Delete transactions
+  // Delete transactions
 
-    // Delete Single Transaction
-    async function handleDelete(id: number) {
-      try {
-        const res = await fetch(`http://localhost:8080/api/transactions/${id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
+  // Delete Single Transaction
+  async function handleDelete(id: number) {
+    try {
+      const res = await fetch(`http://localhost:8080/api/transactions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
 
-        if (res.ok) {
-          // Remove from UI
-          setTransactions(prev => prev.filter(t => t.id !== id));
-          setDeleteSnackbar(true);
-        } else {
-          console.error("Failed to delete");
-        }
-      } catch (err) {
-        console.error("Delete error", err);
-      }
-    }
-
-    // Select Multiple Transactions
-    const [selectionMode, setSelectionMode] = useState(false);
-
-    const selection = CheckboxSelection<number>();
-
-    // Delete Multiple Transactions
-    async function handleBulkDelete() {
-      const ids = Array.from(selection.selected);
-
-      if (ids.length === 0) return;
-
-      try {
-        const res = await fetch("http://localhost:8080/api/transactions/bulk", {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(ids),
-        });
-      
-        if (!res.ok) {
-          throw new Error("Bulk delete failed");
-        }
-      
-        // Remove deleted transactions from UI
-        setTransactions(prev =>
-          prev.filter(t => !selection.selected.has(t.id))
-        );
-      
-        selection.clear();
-        setSelectionMode(false);
+      if (res.ok) {
+        // Remove from UI
+        setTransactions(prev => prev.filter(t => t.id !== id));
         setDeleteSnackbar(true);
-      
-      } catch (err) {
-        console.error(err);
-        alert("Failed to delete selected transactions");
+      } else {
+        console.error("Failed to delete");
       }
+    } catch (err) {
+      console.error("Delete error", err);
     }
+  }
+
+  // Select Multiple Transactions
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  const selection = CheckboxSelection<number>();
+
+  // Delete Multiple Transactions
+  async function handleBulkDelete() {
+    const ids = Array.from(selection.selected);
+
+    if (ids.length === 0) return;
+
+    try {
+      const res = await fetch("http://localhost:8080/api/transactions/bulk", {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(ids),
+      });
+
+      if (!res.ok) {
+        throw new Error("Bulk delete failed");
+      }
+
+      // Remove deleted transactions from UI
+      setTransactions(prev =>
+        prev.filter(t => !selection.selected.has(t.id))
+      );
+
+      selection.clear();
+      setSelectionMode(false);
+      setDeleteSnackbar(true);
+
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete selected transactions");
+    }
+  }
+
+  // Import CSV
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setCsvFile(e.target.files[0]);
+      setCsvPreview([]);
+      setCsvErrors([]);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!csvFile) return;
+
+    const formData = new FormData();
+    formData.append("file", csvFile);
+
+    try {
+      const res = await axios.post("http://localhost:8080/api/transactions/upload", formData, {
+        withCredentials: true,
+      });
+
+      if (res.data.errors) {
+        setCsvErrors(res.data.errors);
+      } else {
+        setCsvPreview(res.data.preview);
+        setOpenImportModal(true);
+      }
+    } catch (err) {
+      console.error("Failed to import CSV:", err);
+      alert("Failed to import CSV.");
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!csvFile) return;
+
+    const formData = new FormData();
+    formData.append("file", csvFile);
+
+    try {
+      await axios.post("http://localhost:8080/api/transactions/upload", formData, {
+        withCredentials: true,
+      });
+
+      setOpenImportModal(false);
+      setCsvFile(null);
+      setCsvPreview([]);
+      setCsvErrors([]);
+
+      // Fetch updated transactions
+      const res = await axios.get("http://localhost:8080/api/transactions", {
+        withCredentials: true,
+      });
+
+      const transformed = res.data.map((t: any, index: number) => ({
+        id: t.id,
+        name: t.description,
+        category: t.category,
+        account: "Bank",
+        date: t.date,
+        status: "completed",
+        amount: Number(t.amount),
+        type: Number(t.amount) >= 0 ? "income" : "expense",
+      }));
+
+      setTransactions(transformed);
+      setSnackbarOpen(true);
+    } catch (err) {
+      console.error("Failed to import CSV:", err);
+      alert("Failed to import CSV.");
+    }
+  };
 
   return (
     <Stack spacing={3}>
@@ -398,6 +480,9 @@ export default function Transactions() {
               />
               <Button variant="contained" startIcon={<FileDownloadIcon />}>
                 Export
+              </Button>
+              <Button variant="contained" startIcon={<UploadFileIcon />} onClick={() => setOpenImportModal(true)}>
+                Import CSV
               </Button>
               <Button variant="contained" onClick={() => setOpenModal(true)}>
                 + Add Transaction(s)
@@ -612,6 +697,60 @@ export default function Transactions() {
           <Button onClick={() => setOpenModal(false)}>Cancel</Button>
           <Button variant="contained" onClick={handleAddTransaction}>
             Add
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* IMPORT CSV MODAL */}
+      <Dialog open={openImportModal} onClose={() => setOpenImportModal(false)} fullWidth maxWidth="sm">
+        <DialogTitle mb = {-2}>Import CSV</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} mt={1}>
+            <Typography>
+              Preview of first 20 rows:
+            </Typography>
+            {csvPreview.length > 0 ? (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Amount</TableCell>
+                    <TableCell>Category</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {csvPreview.slice(0, 20).map((row, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{row.date}</TableCell>
+                      <TableCell>{row.description}</TableCell>
+                      <TableCell>{currency(row.amount)}</TableCell>
+                      <TableCell>{row.category}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <Typography>No preview available.</Typography>
+            )}
+            {csvErrors.length > 0 && (
+              <FormControl error>
+                <FormHelperText>
+                  {csvErrors.map((error, index) => (
+                    <Typography key={index} color="error">
+                      {error}
+                    </Typography>
+                  ))}
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Stack>
+        </DialogContent>
+
+        <DialogActions>
+          <Button onClick={() => setOpenImportModal(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirmImport}>
+            Import
           </Button>
         </DialogActions>
       </Dialog>

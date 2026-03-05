@@ -15,16 +15,18 @@ import java.util.List;
  */
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
-    
+
     /**
      * Retrieves all transaction that belong to a specific user.
-     * 
+     *
      * @param user The user whose transactions should be returned
-     * @return A list of transacitons belonging to the user.
+     * @return A list of transactions belonging to the user.
      */
     List<Transaction> findAllByUser(User user);
 
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
     void deleteAllByIdInAndUser(@Param("ids") List<Long> ids, @Param("user") User user);
+
+    Transaction findByDateAndDescriptionAndAmountAndCategory(LocalDate date, String description, BigDecimal amount, String category, User user);
 }
