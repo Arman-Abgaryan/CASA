@@ -95,6 +95,7 @@ export default function Transactions() {
   const [openImportModal, setOpenImportModal] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
 
   useEffect(() => {
@@ -303,6 +304,7 @@ export default function Transactions() {
     if (e.target.files && e.target.files.length > 0) {
       setCsvFile(e.target.files[0]);
       setCsvPreview([]);
+      setCsvHeaders([]);
       setCsvErrors([]);
     }
   };
@@ -322,6 +324,7 @@ export default function Transactions() {
         setCsvErrors(res.data.errors);
       } else {
         setCsvPreview(res.data.preview);
+        setCsvHeaders(res.data.headers);
         setOpenImportModal(true);
       }
     } catch (err) {
@@ -344,6 +347,7 @@ export default function Transactions() {
       setOpenImportModal(false);
       setCsvFile(null);
       setCsvPreview([]);
+      setCsvHeaders([]);
       setCsvErrors([]);
 
       // Fetch updated transactions
@@ -707,25 +711,33 @@ export default function Transactions() {
         <DialogContent>
           <Stack spacing={2} mt={1}>
             <Typography>
-              Preview of first 20 rows:
+              Select CSV File:
             </Typography>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+            />
+            {csvHeaders.length > 0 && (
+              <Typography>
+                Detected Headers: {csvHeaders.join(", ")}
+              </Typography>
+            )}
             {csvPreview.length > 0 ? (
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Category</TableCell>
+                    {csvHeaders.map(header => (
+                      <TableCell key={header}>{header}</TableCell>
+                    ))}
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {csvPreview.slice(0, 20).map((row, index) => (
                     <TableRow key={index}>
-                      <TableCell>{row.date}</TableCell>
-                      <TableCell>{row.description}</TableCell>
-                      <TableCell>{currency(row.amount)}</TableCell>
-                      <TableCell>{row.category}</TableCell>
+                      {csvHeaders.map(header => (
+                        <TableCell key={header}>{row[header]}</TableCell>
+                      ))}
                     </TableRow>
                   ))}
                 </TableBody>
