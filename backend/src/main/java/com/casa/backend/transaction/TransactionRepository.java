@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.time.LocalDate;
+import java.math.BigDecimal;
 
 /**
  * Repository interface for performing CRUD operations on transactions.
@@ -28,5 +30,5 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
     void deleteAllByIdInAndUser(@Param("ids") List<Long> ids, @Param("user") User user);
 
-    Transaction findByDateAndDescriptionAndAmountAndCategory(LocalDate date, String description, BigDecimal amount, String category, User user);
+    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(LocalDate date, String description, BigDecimal amount, String category, User user);
 }

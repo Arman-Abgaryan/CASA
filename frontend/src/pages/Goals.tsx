@@ -16,42 +16,25 @@ import { useNavigate } from "react-router-dom";
 
 import ProgressBar from "../components/ProgressBar";
 import DeleteIcon from "@mui/icons-material/Delete";
+import api from "../axiosConfig";
+import { useAuth } from "../AuthContext";
 
 export default function Goals() {
   const navigate = useNavigate();
+  const { isLoggedIn } = useAuth();
 
-  /* Login State */
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("loggedIn");
-    const email = localStorage.getItem("email");
-
-    setIsLoggedIn(Boolean(loggedIn && email));
-    setCheckingAuth(false);
-  }, []);
-
-  // If not logged in → clear goals and redirect
   const [goals, setGoals] = useState([]);
 
   useEffect(() => {
-    if (!checkingAuth && !isLoggedIn) {
-      setGoals([]); // CLEAR goals on logout
+    if (!isLoggedIn) {
+      setGoals([]);
     }
-  }, [checkingAuth, isLoggedIn, navigate]);
+  }, [isLoggedIn]);
 
-  /* Fetch goals — ONLY IF LOGGED IN */
   const fetchGoals = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/goals", {
-        credentials: "include",
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setGoals(data);
-      }
+      const res = await api.get("/api/goals");
+      setGoals(res.data);
     } catch (err) {
       console.error("Failed to load goals:", err);
     }
@@ -61,11 +44,8 @@ export default function Goals() {
     if (isLoggedIn) fetchGoals();
   }, [isLoggedIn]);
 
-  /* ----------------------------------------------------------
-     ADD GOAL DIALOG
-  ---------------------------------------------------------- */
+  /* ADD GOAL DIALOG */
   const [openAddGoal, setOpenAddGoal] = useState(false);
-
   const [goalName, setGoalName] = useState("");
   const [currentAmount, setCurrentAmount] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
@@ -87,22 +67,15 @@ export default function Goals() {
     };
 
     try {
-      const res = await fetch("http://localhost:8080/api/goals", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newGoal),
-      });
-
-      const saved = await res.json();
-      setGoals([...goals, saved]);
+      const res = await api.post("/api/goals", newGoal);
+      setGoals([...goals, res.data]);
       handleClose();
     } catch (err) {
       console.error("Failed to save goal", err);
     }
   };
 
-  /* Update Funds Button */
+  /* Update Funds */
   const [openUpdate, setOpenUpdate] = useState(false);
   const [goalToUpdate, setGoalToUpdate] = useState(null);
   const [newAmount, setNewAmount] = useState("");
@@ -115,37 +88,14 @@ export default function Goals() {
 
   /* Goal Card */
   const GoalCard = ({ goal }) => (
-    <Paper
-      sx={{
-        maxWidth: "40%",
-        p: 3,
-        mb: 3,
-        borderRadius: "16px",
-        boxShadow: 5,
-      }}
-    >
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 1,
-        }}
-      >
-        <Typography variant="h6" fontWeight="bold">
-          {goal.name}
-        </Typography>
-
-        {/* DELETE GOAL */}
+    <Paper sx={{ maxWidth: "40%", p: 3, mb: 3, borderRadius: "16px", boxShadow: 5 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+        <Typography variant="h6" fontWeight="bold">{goal.name}</Typography>
         <IconButton
           color="error"
           size="small"
           onClick={async () => {
-            await fetch(`http://localhost:8080/api/goals/${goal.id}`, {
-              method: "DELETE",
-              credentials: "include",
-            });
-
+            await api.delete(`/api/goals/${goal.id}`);
             setGoals((prev) => prev.filter((g) => g.id !== goal.id));
           }}
         >
@@ -153,20 +103,10 @@ export default function Goals() {
         </IconButton>
       </Box>
 
-      <ProgressBar
-        current={goal.currentAmount}
-        target={goal.targetAmount}
-        color="#3CA0CA"
-      />
+      <ProgressBar current={goal.currentAmount} target={goal.targetAmount} color="#3CA0CA" />
 
       <Button
-        sx={{
-          backgroundColor: "green",
-          color: "white",
-          borderRadius: "2",
-          mt: 1,
-          "&:hover": { backgroundColor: "#006B01" },
-        }}
+        sx={{ backgroundColor: "green", color: "white", borderRadius: "2", mt: 1, "&:hover": { backgroundColor: "#006B01" } }}
         onClick={() => handleOpenUpdate(goal)}
       >
         Update funds
@@ -174,36 +114,16 @@ export default function Goals() {
     </Paper>
   );
 
-  /* Auth Check */
-  if (checkingAuth) return null;
-
-  /* Page UI */
   return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-      }}
-    >
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
       <Box sx={{ flex: 3 }}>
-        <Typography variant="h4" fontWeight="bold">
-          Goals
-        </Typography>
-
+        <Typography variant="h4" fontWeight="bold">Goals</Typography>
         <Typography variant="body1" color="text.secondary" mb={4}>
           Track your progress toward your financial goals.
         </Typography>
 
         <Button
-          sx={{
-            mt: -2,
-            mb: 3,
-            backgroundColor: "green",
-            color: "white",
-            borderRadius: "2",
-            "&:hover": { backgroundColor: "#006B01" },
-          }}
+          sx={{ mt: -2, mb: 3, backgroundColor: "green", color: "white", borderRadius: "2", "&:hover": { backgroundColor: "#006B01" } }}
           onClick={handleAddGoal}
         >
           + Add goal
@@ -219,17 +139,10 @@ export default function Goals() {
           <GoalCard key={g.id} goal={g} />
         ))}
 
-        {/* ---------------------- ADD GOAL DIALOG ---------------------- */}
+        {/* ADD GOAL DIALOG */}
         <Dialog open={openAddGoal} onClose={handleClose}>
           <DialogTitle sx={{ mb: -1 }}>Add New Goal</DialogTitle>
-
-          <DialogContent
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
+          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <TextField
               label="Goal Name"
               fullWidth
@@ -237,7 +150,6 @@ export default function Goals() {
               onChange={(e) => setGoalName(e.target.value)}
               sx={{ mt: 0.55 }}
             />
-
             <TextField
               label="Current Amount"
               type="number"
@@ -245,7 +157,6 @@ export default function Goals() {
               value={currentAmount}
               onChange={(e) => setCurrentAmount(e.target.value)}
             />
-
             <TextField
               label="Target Amount"
               type="number"
@@ -254,35 +165,21 @@ export default function Goals() {
               onChange={(e) => setTargetAmount(e.target.value)}
             />
           </DialogContent>
-
           <DialogActions>
             <Button onClick={handleClose}>Cancel</Button>
-            <Button
-              onClick={handleSaveGoal}
-              variant="contained"
-              sx={{ backgroundColor: "green" }}
-            >
+            <Button onClick={handleSaveGoal} variant="contained" sx={{ backgroundColor: "green" }}>
               Save
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* ---------------------- UPDATE FUNDS DIALOG ---------------------- */}
+        {/* UPDATE FUNDS DIALOG */}
         <Dialog open={openUpdate} onClose={() => setOpenUpdate(false)}>
           <DialogTitle>Update Funds</DialogTitle>
-
-          <DialogContent
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              pt: 1,
-            }}
-          >
+          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
             <Typography variant="body2">
               Goal: <strong>{goalToUpdate?.name}</strong>
             </Typography>
-
             <TextField
               label="New Current Amount"
               type="number"
@@ -291,35 +188,19 @@ export default function Goals() {
               onChange={(e) => setNewAmount(e.target.value)}
             />
           </DialogContent>
-
           <DialogActions>
             <Button onClick={() => setOpenUpdate(false)}>Cancel</Button>
-
             <Button
               variant="contained"
               sx={{ backgroundColor: "green" }}
               onClick={async () => {
                 try {
-                  const res = await fetch(
-                    `http://localhost:8080/api/goals/${goalToUpdate.id}`,
-                    {
-                      method: "PUT",
-                      credentials: "include",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({
-                        currentAmount: Number(newAmount),
-                      }),
-                    }
-                  );
-
-                  const updated = await res.json();
-
+                  const res = await api.put(`/api/goals/${goalToUpdate.id}`, {
+                    currentAmount: Number(newAmount),
+                  });
                   setGoals((prev) =>
-                    prev.map((g) => (g.id === updated.id ? updated : g))
+                    prev.map((g) => (g.id === res.data.id ? res.data : g))
                   );
-
                   setOpenUpdate(false);
                 } catch (err) {
                   console.error("Failed to update goal:", err);

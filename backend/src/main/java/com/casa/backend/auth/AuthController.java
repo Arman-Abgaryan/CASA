@@ -51,39 +51,59 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequest r,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
         try {
-            // Authenticate using Spring Security
             var authentication = auth.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        r.email(),
-                        r.password()
-                )
-            );
-            
-            // Store authentication in SecurityContext
+                    new UsernamePasswordAuthenticationToken(
+                            r.email(),
+                            r.password()));
+
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            
-            // CRITICAL: Store SecurityContext in session so it persists
+
             HttpSession session = request.getSession(true);
             session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 
-            // Load user from DB for response
             User u = users.findByEmail(r.email()).orElseThrow();
 
             return ResponseEntity.ok(
-                new AuthResponse(
-                        u.getFirstName(),
-                        u.getLastName(),
-                        u.getEmail()
-                )
-            );
+                    new AuthResponse(
+                            u.getFirstName(),
+                            u.getLastName(),
+                            u.getEmail(),
+                            u.getProfileImageUrl()));
 
         } catch (Exception e) {
             return ResponseEntity
                     .status(401)
                     .body("Invalid email or password");
         }
+    }
+
+    // --------------------------- ME ---------------------------
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+
+        var context = (org.springframework.security.core.context.SecurityContext) session
+                .getAttribute("SPRING_SECURITY_CONTEXT");
+
+        if (context == null || context.getAuthentication() == null ||
+                !context.getAuthentication().isAuthenticated()) {
+            return ResponseEntity.status(401).body("Not authenticated");
+        }
+
+        String email = context.getAuthentication().getName();
+        User u = users.findByEmail(email).orElseThrow();
+
+        return ResponseEntity.ok(
+                new AuthResponse(
+                        u.getFirstName(),
+                        u.getLastName(),
+                        u.getEmail(),
+                        u.getProfileImageUrl()));
     }
 }

@@ -22,13 +22,18 @@ public class TransactionController {
     /**
      * Uploads a CSV file and saves transactions for the logged-in user
      */
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadCSV(@RequestParam("file") MultipartFile file, Principal principal) {
-        // Get the logged-in user based on their email (principal.getName())
+    // PREVIEW - no saving
+    @PostMapping("/upload/preview")
+    public ResponseEntity<?> previewCSV(@RequestParam("file") MultipartFile file, Principal principal) {
+        Map<String, Object> result = transactionService.previewCSV(file);
+        return ResponseEntity.ok(result);
+    }
+
+    // CONFIRM - actually saves
+    @PostMapping("/upload/confirm")
+    public ResponseEntity<?> confirmCSV(@RequestParam("file") MultipartFile file, Principal principal) {
         User user = userService.getByEmail(principal.getName());
-
-        Map<String, Object> result = transactionService.processCSV(file, user);
-
+        Map<String, Object> result = transactionService.importCSV(file, user);
         return ResponseEntity.ok(result);
     }
 

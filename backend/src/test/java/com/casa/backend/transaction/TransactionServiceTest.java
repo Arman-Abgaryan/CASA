@@ -36,27 +36,26 @@ class TransactionServiceTest {
     }
 
     @Test
-    void processCSV_success() throws Exception {
+    void importCSV_success() throws Exception {
 
         // Example CSV content
-        String csv =
-                "date,description,category,amount\n" +
-                "2025-01-01,Starbucks,Food,-4.75\n" +
-                "2025-01-02,Salary,Income,3000\n";
+        String csv = "date,description,amount,category\n" +
+                "2025-01-01,Starbucks,-4.75,Food\n" +
+                "2025-01-02,Salary,3000,Income\n";
 
         MultipartFile mockFile = mock(MultipartFile.class);
         when(mockFile.getInputStream())
                 .thenReturn(new ByteArrayInputStream(csv.getBytes()));
 
         User user = new User();
-        service.processCSV(mockFile, user);
+        service.importCSV(mockFile, user);
 
         // Should save 2 transactions
         verify(repo, times(2)).save(any(Transaction.class));
     }
 
     @Test
-    void processCSV_throwsException() throws Exception {
+    void importCSV_throwsException() throws Exception {
         MultipartFile mockFile = mock(MultipartFile.class);
 
         // make getInputStream throw exception
@@ -65,9 +64,7 @@ class TransactionServiceTest {
 
         User user = new User();
 
-        RuntimeException ex = assertThrows(RuntimeException.class, () ->
-                service.processCSV(mockFile, user)
-        );
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.importCSV(mockFile, user));
 
         assertTrue(ex.getMessage().contains("Error processing CSV"));
     }

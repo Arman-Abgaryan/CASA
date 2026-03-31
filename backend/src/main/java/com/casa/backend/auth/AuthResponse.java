@@ -7,5 +7,6 @@ package com.casa.backend.auth;
 public record AuthResponse(
         String firstName,
         String lastName,
-        String email
+        String email,
+        String profileImageUrl
 ) {}
