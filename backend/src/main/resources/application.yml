@@ -8,9 +8,9 @@ spring:
       hibernate:
         format_sql: true
   datasource:
-    url: jdbc:mysql://db:3306/casa?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: ${MYSQL_USER:casa}
-    password: ${MYSQL_PASSWORD:casa}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
   flyway:
     enabled: false
