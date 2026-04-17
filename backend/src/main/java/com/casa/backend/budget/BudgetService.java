@@ -20,6 +20,10 @@ public class BudgetService {
 
     /**
      * Creates and saves a new budget for the user.
+     *
+     * @param user The authenticated user to associate with the budget.
+     * @param budget The budget object containing the maxAmount.
+     * @return The saved Budget with its generated ID.
      */
     public Budget createBudget(User user, Budget budget) {
         budget.setUser(user); // Link to correct user
@@ -27,7 +31,12 @@ public class BudgetService {
     }
 
     /**
-     * Deletes a budget IF it belongs to the user.
+     * Deletes a budget if it belongs to the authenticated user.
+     * Throws an exception if the budget is not found or does not belong to the
+     * user.
+     *
+     * @param user The authenticated user.
+     * @param budgetId The ID of the budget to delete.
      */
     public void deleteBudget(User user, Long budgetId) {
         Budget budget = budgetRepository.findById(budgetId)

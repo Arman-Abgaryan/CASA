@@ -10,6 +10,11 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * REST controller for managing user profile pictures.
+ * Handles uploading, retrieving, and deleting profile images using Cloudinary
+ * for cloud-based image storage under /api/users.
+ */
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -19,6 +24,15 @@ public class ProfilePictureController {
     private final UserService userService;
     private final UserRepository userRepository;
 
+    /**
+     * Uploads a new profile picture for the authenticated user.
+     * If the user already has a profile picture, the old image is deleted from
+     * Cloudinary first.
+     * The image is cropped to 256x256 with face detection gravity.
+     *
+     * @param file The image file to upload.
+     * @return 200 OK with the new image URL, or 500 on upload failure.
+     */
     // POST /api/users/profile-picture
     @PostMapping("/profile-picture")
     public ResponseEntity<?> uploadProfilePicture(@RequestParam("file") MultipartFile file) {
@@ -55,6 +69,11 @@ public class ProfilePictureController {
         }
     }
 
+    /**
+     * Deletes the authenticated user's profile picture from Cloudinary and clears it from the database.
+     *
+     * @return 200 OK on success, 400 Bad Request if no picture exists, or 500 on deletion failure.
+     */
     // DELETE /api/users/profile-picture
     @DeleteMapping("/profile-picture")
     public ResponseEntity<?> deleteProfilePicture() {
@@ -80,6 +99,11 @@ public class ProfilePictureController {
         }
     }
 
+    /**
+     * Retrieves the profile picture URL for the authenticated user.
+     *
+     * @return 200 OK with the image URL, or 204 No Content if no picture is set.
+     */
     // GET /api/users/profile-picture
     @GetMapping("/profile-picture")
     public ResponseEntity<?> getProfilePicture() {
@@ -92,6 +116,13 @@ public class ProfilePictureController {
         return ResponseEntity.ok(Map.of("url", user.getProfileImageUrl()));
     }
 
+    /**
+     * Extracts the Cloudinary public ID from a full image URL.
+     * Used when deleting images to identify the correct resource in Cloudinary.
+     *
+     * @param url The full Cloudinary image URL.
+     * @return The public ID string used to reference the image in Cloudinary.
+     */
     // Extracts the Cloudinary public ID from a full URL
     private String extractPublicId(String url) {
         String[] parts = url.split("/upload/");

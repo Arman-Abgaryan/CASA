@@ -167,6 +167,22 @@ export default function Budgets() {
     "#BA68C8", "#FF8A65", "#4DB6AC"
   ];
 
+  const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 60;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  if (percent < 0.02) return null;
+
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#333" fontFamily="Roboto, sans-serif">
+      <tspan x={x} dy="-0.4em" fontWeight="bold" fill="#333">{`${(percent * 100).toFixed(0)}%`}</tspan>
+      <tspan x={x} dy="1.2em" fill="#666">{name}</tspan>
+    </text>
+  );
+};
+
   return (
     <Box>
       <Typography variant="h4" fontWeight="bold">Budgets</Typography>
@@ -234,16 +250,16 @@ export default function Budgets() {
               <Typography variant="h6" fontWeight={700}>Budget Overview</Typography>
               <Divider sx={{ my: 2 }} />
 
-              <Box sx={{ width: "100%", height: 240 }}>
+              <Box sx={{ width: "100%", height: 400 }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie
                       data={pieData}
                       dataKey="value"
                       nameKey="name"
-                      outerRadius={85}
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={130}
+                      labelLine={true}
+                      label={renderCustomLabel}
                     >
                       {pieData.map((_, i) => (
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -251,20 +267,6 @@ export default function Budgets() {
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-              </Box>
-
-              <Box sx={{ mt: 3, ml: 1 }}>
-                {pieData.map((item, i) => {
-                  const color = item.name.toLowerCase() === "other"
-                    ? "#F5B971"
-                    : PIE_COLORS[i % PIE_COLORS.length];
-                  return (
-                    <Stack key={i} direction="row" alignItems="center" spacing={1.2} sx={{ mb: 0.8 }}>
-                      <Box sx={{ width: 14, height: 14, borderRadius: 2, backgroundColor: color }} />
-                      <Typography variant="body2">{item.name}</Typography>
-                    </Stack>
-                  );
-                })}
               </Box>
             </CardContent>
           </Card>

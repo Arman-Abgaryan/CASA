@@ -1,6 +1,8 @@
 package com.casa.backend.budget;
 
 import com.casa.backend.user.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -46,6 +48,7 @@ public class Budget {
     @Column(nullable = false)
     private BigDecimal maxAmount;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "budget", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CategoryBudget> categoryBudgets = new ArrayList<>();
 

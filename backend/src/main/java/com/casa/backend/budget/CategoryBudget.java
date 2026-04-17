@@ -3,6 +3,7 @@ package com.casa.backend.budget;
 import com.casa.backend.user.User;
 import jakarta.persistence.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.math.BigDecimal;
 
@@ -27,6 +28,7 @@ public class CategoryBudget {
 
     @ManyToOne
     @JoinColumn(name = "budget_id")
+    @JsonIgnore
     private Budget budget;
 
     @ManyToOne

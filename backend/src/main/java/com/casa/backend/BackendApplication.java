@@ -3,6 +3,10 @@ package com.casa.backend;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * Entry point for the CASA backend application.
+ * Bootstraps and launches the Spring Boot application.
+ */
 @SpringBootApplication
 public class BackendApplication {
     public static void main(String[] args) {

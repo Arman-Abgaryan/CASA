@@ -28,9 +28,29 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
      */
     List<Transaction> findAllByUser(User user);
 
+    /**
+     * Deletes all transactions whose IDs are in the provided list and belong to the
+     * specified user.
+     * Used for bulk delete operations.
+     *
+     * @param ids The list of transaction IDs to delete.
+     * @param user The user who owns the transactions.
+     */
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
     void deleteAllByIdInAndUser(@Param("ids") List<Long> ids, @Param("user") User user);
 
+    /**
+     * Finds a transaction matching all provided fields for a specific user.
+     * Used for deduplication during CSV import to avoid saving duplicate
+     * transactions.
+     *
+     * @param date The transaction date.
+     * @param description The transaction description.
+     * @param amount The transaction amount.
+     * @param category The transaction category.
+     * @param user The user who owns the transaction.
+     * @return The matching Transaction if found, or null if no match exists.
+     */
     Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(LocalDate date, String description, BigDecimal amount, String category, User user);
 }

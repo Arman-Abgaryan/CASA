@@ -11,6 +11,11 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * REST controller for managing user transactions.
+ * Handles adding, retrieving, deleting, and importing transactions under
+ * /api/transactions.
+ */
 @RestController
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
@@ -20,7 +25,11 @@ public class TransactionController {
     private final UserService userService;
 
     /**
-     * Uploads a CSV file and saves transactions for the logged-in user
+     * Parses a CSV file and returns a preview without saving to the database.
+     *
+     * @param file The uploaded CSV file.
+     * @param principal The authenticated user's principal.
+     * @return A map containing a preview list and any parsing errors.
      */
     // PREVIEW - no saving
     @PostMapping("/upload/preview")
@@ -29,6 +38,14 @@ public class TransactionController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Parses a CSV file and saves all valid transactions to the database.
+     * Skips duplicates based on date, description, amount, category, and user.
+     *
+     * @param file The uploaded CSV file.
+     * @param principal The authenticated user's principal.
+     * @return A map containing the saved transactions and any errors.
+     */
     // CONFIRM - actually saves
     @PostMapping("/upload/confirm")
     public ResponseEntity<?> confirmCSV(@RequestParam("file") MultipartFile file, Principal principal) {
@@ -37,6 +54,13 @@ public class TransactionController {
         return ResponseEntity.ok(result);
     }
 
+    /**
+     * Adds a single transaction for the authenticated user.
+     *
+     * @param transaction The transaction object to save.
+     * @param principal The authenticated user's principal.
+     * @return 200 OK with a success message.
+     */
     @PostMapping("/add")
     public ResponseEntity<?> addTransaction(@RequestBody Transaction transaction, Principal principal) {
         User user = userService.getByEmail(principal.getName());
@@ -48,6 +72,14 @@ public class TransactionController {
         return ResponseEntity.ok("Transaction saved successfully.");
     }
 
+    /**
+     * Deletes a single transaction by ID.
+     * Only deletes if the transaction belongs to the authenticated user.
+     *
+     * @param id The ID of the transaction to delete.
+     * @param principal The authenticated user's principal.
+     * @return 200 OK on success, or 403 Forbidden if unauthorized.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTransaction(@PathVariable Long id, Principal principal) {
         User user = userService.getByEmail(principal.getName());
@@ -63,6 +95,14 @@ public class TransactionController {
         return ResponseEntity.ok("Deleted");
     }
 
+    /**
+     * Deletes multiple transactions by their IDs in a single request.
+     * Only deletes transactions belonging to the authenticated user.
+     *
+     * @param ids A list of transaction IDs to delete.
+     * @param principal The authenticated user's principal.
+     * @return 200 OK with a success message.
+     */
     @DeleteMapping("/bulk")
     public ResponseEntity<?> deleteTransactionsBulk(
             @RequestBody List<Long> ids,
@@ -77,6 +117,9 @@ public class TransactionController {
 
     /**
      * Returns all transactions for the logged-in user.
+     *
+     * @param principal The authenticated user's principal.
+     * @return A list of all transactions belonging to the user.
      */
     @GetMapping
     public ResponseEntity<List<Transaction>> getUserTransactions(Principal principal) {

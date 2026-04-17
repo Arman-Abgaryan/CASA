@@ -58,6 +58,13 @@ public class SecurityConfig {
         return http.build();
     }
     
+    /**
+     * Provides a UserDetailsService that loads users by email for Spring Security
+     * authentication.
+     *
+     * @param users The UserRepository used to look up users by email.
+     * @return A UserDetailsService implementation that retrieves user credentials from the database.
+     */
     @Bean
     public UserDetailsService userDetailsService(UserRepository users) {
         return email -> users.findByEmail(email)
