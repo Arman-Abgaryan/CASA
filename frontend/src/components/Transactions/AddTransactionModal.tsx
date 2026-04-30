@@ -1,4 +1,5 @@
 import {
+  Autocomplete,
   Button,
   Dialog,
   DialogActions,
@@ -16,8 +17,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onTransactionAdded: () => void;
-  // Manually added transactions are flagged as "Manual" on the backend, so the
-  // modal does not need any bank-related controls.
+  /**
+   * Bank names already present on other transactions, used to populate the
+   * Bank autocomplete dropdown. Always includes at least "Manual".
+   */
+  bankNames?: string[];
   editTransaction?: {
     id: number;
     name: string;
@@ -29,13 +33,14 @@ interface Props {
   };
 }
 
-export default function AddTransactionModal({ open, onClose, onTransactionAdded, editTransaction }: Props) {
+export default function AddTransactionModal({ open, onClose, onTransactionAdded, bankNames, editTransaction }: Props) {
   const [newTx, setNewTx] = useState({
     name: "",
     category: "",
     date: "",
     amount: "",
     type: "income",
+    bankName: "Manual",
   });
 
   useEffect(() => {
@@ -46,9 +51,10 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
         date: editTransaction.date,
         amount: String(Math.abs(editTransaction.amount)),
         type: editTransaction.type,
+        bankName: editTransaction.bankName || "Manual",
       });
     } else {
-      setNewTx({ name: "", category: "", date: "", amount: "", type: "income" });
+      setNewTx({ name: "", category: "", date: "", amount: "", type: "income", bankName: "Manual" });
     }
   }, [editTransaction, open]);
 
@@ -64,6 +70,7 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
       category: newTx.category,
       date: newTx.date || new Date().toISOString().split("T")[0],
       amount: newTx.type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
+      bankName: newTx.bankName?.trim() || "Manual",
     };
 
     try {
@@ -79,6 +86,9 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
       alert("Failed to save transaction.");
     }
   };
+
+  // Always offer "Manual" as a baseline option even if no other transactions exist yet.
+  const bankOptions = Array.from(new Set(["Manual", ...(bankNames || [])])).sort();
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -131,6 +141,25 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
             <MenuItem value="income">Income</MenuItem>
             <MenuItem value="expense">Expense</MenuItem>
           </Select>
+          {/*
+            freeSolo lets the user either pick an existing bank from the dropdown
+            (most common — Chase, Citibank, etc. they've already imported from)
+            or type a brand-new name without us having to predefine the list.
+          */}
+          <Autocomplete
+            freeSolo
+            options={bankOptions}
+            value={newTx.bankName}
+            onChange={(_, value) => setNewTx({ ...newTx, bankName: (value as string) || "Manual" })}
+            onInputChange={(_, value) => setNewTx({ ...newTx, bankName: value })}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Bank"
+                helperText="Pick from your existing banks or type a new one. Leave as 'Manual' for entries with no bank."
+              />
+            )}
+          />
         </Stack>
       </DialogContent>
       <DialogActions>

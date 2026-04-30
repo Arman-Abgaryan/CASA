@@ -101,6 +101,18 @@ export default function Transactions() {
   const totalExpenses = useMemo(() => filteredTransactions.filter((t) => t.amount < 0).reduce((a, b) => a + Math.abs(b.amount), 0), [filteredTransactions]);
   const netAmount = totalIncome - totalExpenses;
 
+  // Distinct bank names across ALL transactions (not just filtered) so the
+  // edit-modal autocomplete shows every bank the user has, regardless of
+  // current date/category filters.
+  const uniqueBankNames = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach((t) => {
+      if (t.bankName) set.add(t.bankName);
+    });
+    set.add("Manual");
+    return Array.from(set).sort();
+  }, [transactions]);
+
   return (
     <AnimatedPage>
       <Stack spacing={{ xs: 2, md: 3 }}>
@@ -181,6 +193,7 @@ export default function Transactions() {
           onClose={() => { setOpenModal(false); setEditTx(null); }}
           onTransactionAdded={() => { fetchTransactions(); editTx ? setEditSnackbar(true) : setSnackbarOpen(true); }}
           editTransaction={editTx}
+          bankNames={uniqueBankNames}
         />
         <ImportCSVModal open={openImportModal} onClose={() => setOpenImportModal(false)} onImportComplete={() => { fetchTransactions(); setSnackbarOpen(true); }} />
         <ManageBanksButton
