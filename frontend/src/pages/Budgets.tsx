@@ -28,6 +28,7 @@ import {
 import ProgressBar from "../components/ProgressBar";
 import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
+import AnimatedPage from "../components/AnimatedPage";
 
 export default function Budgets() {
   const navigate = useNavigate();
@@ -185,16 +186,17 @@ export default function Budgets() {
 };
 
   return (
+    <AnimatedPage>
     <Box>
-      <Typography variant="h4" fontWeight="bold">Budgets</Typography>
+      <Typography variant="h4" fontWeight="bold" sx={{ fontSize: { xs: 30, md: 34 } }}>Budgets</Typography>
       <Typography variant="body1" color="text.secondary" mb={2}>
         Track your spending and budget limits.
       </Typography>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 2, md: 3 }}>
         {/* ---------------- LEFT: Monthly Budget Summary ---------------- */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
+          <Card sx={{ borderRadius: 3, boxShadow: 5, height: "100%" }}>
             <CardContent>
               <Typography variant="h6" fontWeight={700}>
                 Budget for {new Date().toLocaleString("en-US", { month: "long" })}
@@ -226,7 +228,7 @@ export default function Budgets() {
 
               <Button
                 variant="contained"
-                sx={{ backgroundColor: "green", color: "white", borderRadius: 2, mb: 2, mt: 2, "&:hover": { backgroundColor: "#006B01" } }}
+                sx={{ backgroundColor: "green", color: "white", borderRadius: 2, mb: 2, mt: 2, width: { xs: "100%", sm: "auto" }, "&:hover": { backgroundColor: "#006B01" } }}
                 onClick={handleAddBudget}
               >
                 + Add Budget
@@ -235,7 +237,7 @@ export default function Budgets() {
               <Button
                 variant="outlined"
                 color="error"
-                sx={{ borderRadius: 2, ml: 2, borderColor: "error.main", color: "error.main", "&:hover": { backgroundColor: "#ffebeb" } }}
+                sx={{ borderRadius: 2, ml: { xs: 0, sm: 2 }, mt: { xs: 1, sm: 0 }, width: { xs: "100%", sm: "auto" }, borderColor: "error.main", color: "error.main", "&:hover": { backgroundColor: "#ffebeb" } }}
                 onClick={handleResetBudgets}
               >
                 Reset Budget
@@ -246,12 +248,12 @@ export default function Budgets() {
 
         {/* ---------------- BOTTOM: Pie Chart ---------------- */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
+          <Card sx={{ borderRadius: 3, boxShadow: 5, height: "100%" }}>
             <CardContent>
               <Typography variant="h6" fontWeight={700}>Spending Overview</Typography>
               <Divider sx={{ my: 2 }} />
 
-              <Box sx={{ width: "100%", height: 400 }}>
+              <Box sx={{ width: "100%", height: { xs: 280, sm: 360, md: 400 } }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie
@@ -300,5 +302,6 @@ export default function Budgets() {
         <Alert severity="info" variant="filled">Monthly budget has been reset</Alert>
       </Snackbar>
     </Box>
+    </AnimatedPage>
   );
 }
