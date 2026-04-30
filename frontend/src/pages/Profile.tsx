@@ -9,8 +9,8 @@ import {
   Avatar,
   IconButton,
   CircularProgress,
-  Chip,
 } from "@mui/material";
+import AnimatedPage from "../components/AnimatedPage";
 
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
@@ -91,17 +91,18 @@ export default function Profile() {
   };
 
   return (
+    <AnimatedPage>
     <Box>
       <Typography variant="h4" fontWeight={800} mb={3}>
         Profile
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 3, alignItems: "flex-start" }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 3, alignItems: "stretch" }}>
 
         {/* ── LEFT SIDEBAR ── */}
         <Paper
           variant="outlined"
-          sx={{ width: 240, flexShrink: 0, p: 2.5, borderRadius: "16px" }}
+          sx={{ width: { xs: "100%", md: 240 }, flexShrink: 0, p: 2.5, borderRadius: "16px" }}
         >
           {/* Avatar block */}
           <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 2 }}>
@@ -218,7 +219,7 @@ export default function Profile() {
         {/* ── RIGHT CONTENT PANEL ── */}
         <Paper
           variant="outlined"
-          sx={{ flex: 1, minWidth: 0, p: 3.5, borderRadius: "16px" }}
+          sx={{ flex: 1, minWidth: 0, p: { xs: 2.25, md: 3.5 }, borderRadius: "16px" }}
         >
           {selectedPanel === "profile" && (
             <Box>
@@ -230,7 +231,7 @@ export default function Profile() {
               </Typography>
 
               {/* Stats strip */}
-              <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 2, mb: 3.5 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 2, mb: 3.5 }}>
                 {[
                   { label: "Member Since", value: "2025" },
                   { label: "Budgets", value: "—" },
@@ -259,7 +260,7 @@ export default function Profile() {
 
               {/* Info fields */}
               <Stack spacing={2}>
-                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5 }}>
+                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2.5 }}>
                   <Box>
                     <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.8}>
                       First Name
@@ -288,5 +289,6 @@ export default function Profile() {
         </Paper>
       </Box>
     </Box>
+    </AnimatedPage>
   );
 }
