@@ -74,8 +74,13 @@ public class TransactionService {
         existing.setCategory(updated.getCategory());
         existing.setDate(updated.getDate());
         existing.setAmount(updated.getAmount());
-        // bankName is intentionally NOT updated here. The user does not edit it
-        // directly and we want the original import source to stay authoritative.
+        // Allow the user to reassign which bank a transaction is associated with.
+        // If they explicitly cleared the field, fall back to "Manual" rather than
+        // wiping the column to NULL.
+        if (updated.getBankName() != null) {
+            String newBank = updated.getBankName().trim();
+            existing.setBankName(newBank.isEmpty() ? "Manual" : newBank);
+        }
         return transactionRepository.save(existing);
     }
 
