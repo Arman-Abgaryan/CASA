@@ -19,14 +19,15 @@ export default function MobileAppHeader({ onMenuClick }: Props) {
         borderBottom: "1px solid #e5e7eb",
         backgroundColor: "rgba(255,255,255,0.96)",
         backdropFilter: "blur(10px)",
+        zIndex: (theme) => theme.zIndex.drawer + 2,
       }}
     >
-      <Toolbar sx={{ minHeight: "64px !important", px: 2 }}>
-        <IconButton edge="start" onClick={onMenuClick} sx={{ mr: 1 }}>
+      <Toolbar sx={{ minHeight: "72px !important", px: 2, gap: 1 }}>
+        <IconButton edge="start" onClick={onMenuClick} sx={{ mr: 0.5 }}>
           <MenuIcon />
         </IconButton>
         <Box onClick={() => navigate("/dashboard")} sx={{ cursor: "pointer" }}>
-          <Typography fontWeight={900} fontSize={24} color="#052e30">
+          <Typography fontWeight={900} fontSize={24} color="#052e30" letterSpacing={0.5}>
             CASA
           </Typography>
         </Box>
