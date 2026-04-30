@@ -27,8 +27,6 @@ import { CheckboxSelection } from "../CheckboxSelection";
 import EditIcon from "@mui/icons-material/Edit";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { Menu, MenuItem } from "@mui/material";
-import PlaidLinkButton from "./PlaidLinkButton";
-import SyncBankButton from "./SyncBankButton";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -47,13 +45,6 @@ interface Transaction {
   type: string;
 }
 
-interface PlaidSummary {
-  itemsSynced?: number;
-  added: number;
-  modified: number;
-  removed: number;
-}
-
 interface Props {
   transactions: Transaction[];
   onDelete: (id: number) => void;
@@ -61,7 +52,6 @@ interface Props {
   onOpenAdd: () => void;
   onOpenImport: () => void;
   onEdit: (tx: Transaction) => void;
-  onPlaidImported?: (summary: PlaidSummary) => void;
 }
 
 export default function TransactionTable({
@@ -71,7 +61,6 @@ export default function TransactionTable({
   onOpenAdd,
   onOpenImport,
   onEdit,
-  onPlaidImported,
 }: Props) {
   const [search, setSearch] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
@@ -129,8 +118,6 @@ export default function TransactionTable({
             >
               Import CSV
             </Button>
-            <PlaidLinkButton onImported={onPlaidImported} />
-            <SyncBankButton onSynced={onPlaidImported} />
             <Button variant="contained" startIcon={<FileDownloadIcon />}>
               Export
             </Button>
