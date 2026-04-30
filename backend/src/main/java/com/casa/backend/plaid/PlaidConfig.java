@@ -14,7 +14,10 @@ import java.util.HashMap;
  * Reads credentials and environment from these env vars:
  *  - PLAID_CLIENT_ID
  *  - PLAID_SECRET
- *  - PLAID_ENV  ("sandbox", "development", or "production")
+ *  - PLAID_ENV  ("sandbox" or "production")
+ *
+ * Note: Plaid's Java SDK only exposes Sandbox and Production environments.
+ * (The legacy "development" environment was removed in recent SDK versions.)
  */
 @Configuration
 public class PlaidConfig {
@@ -41,10 +44,10 @@ public class PlaidConfig {
         ApiClient apiClient = new ApiClient(apiKeys);
 
         // Map env string to the right Plaid endpoint
-        switch (env.toLowerCase()) {
-            case "production" -> apiClient.setPlaidAdapter(ApiClient.Production);
-            case "development" -> apiClient.setPlaidAdapter(ApiClient.Development);
-            default -> apiClient.setPlaidAdapter(ApiClient.Sandbox);
+        if ("production".equalsIgnoreCase(env)) {
+            apiClient.setPlaidAdapter(ApiClient.Production);
+        } else {
+            apiClient.setPlaidAdapter(ApiClient.Sandbox);
         }
 
         return apiClient.createService(PlaidApi.class);
