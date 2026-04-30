@@ -81,10 +81,6 @@ export default function Transactions() {
     }
   }
 
-  const totalIncome = useMemo(() => transactions.filter((t) => t.amount > 0).reduce((a, b) => a + b.amount, 0), [transactions]);
-  const totalExpenses = useMemo(() => transactions.filter((t) => t.amount < 0).reduce((a, b) => a + Math.abs(b.amount), 0), [transactions]);
-  const netAmount = totalIncome - totalExpenses;
-
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       const date = new Date(t.date);
@@ -99,6 +95,10 @@ export default function Transactions() {
       return dateMatch && categoryMatch;
     });
   }, [transactions, dateRange, selectedCategories]);
+
+  const totalIncome = useMemo(() => filteredTransactions.filter((t) => t.amount > 0).reduce((a, b) => a + b.amount, 0), [filteredTransactions]);
+  const totalExpenses = useMemo(() => filteredTransactions.filter((t) => t.amount < 0).reduce((a, b) => a + Math.abs(b.amount), 0), [filteredTransactions]);
+  const netAmount = totalIncome - totalExpenses;
 
   return (
     <AnimatedPage>
