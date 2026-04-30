@@ -25,6 +25,9 @@ import { useAuth } from "../AuthContext";
 import AddTransactionModal from "../components/Transactions/AddTransactionModal";
 import ImportCSVModal from "../components/Transactions/ImportCSVModal";
 import TransactionTable from "../components/Transactions/TransactionTable";
+import PlaidLinkButton from "../components/Transactions/PlaidLinkButton";
+import SyncBankButton from "../components/Transactions/SyncBankButton";
+import ManageBanksButton from "../components/Transactions/ManageBanksButton";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -47,6 +50,8 @@ export default function Transactions() {
     message: string;
     severity: "success" | "info";
   } | null>(null);
+  const [manageBanksOpen, setManageBanksOpen] = useState(false);
+  const [bankListRefreshKey, setBankListRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -200,6 +205,38 @@ export default function Transactions() {
             </MenuItem>
           </Menu>
         </Grid>
+        <Grid item xs={12} md={6}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="flex-end">
+            <PlaidLinkButton
+              onImported={(summary) => {
+                setBankListRefreshKey((prev) => prev + 1);
+                fetchTransactions();
+                const total = summary.added + summary.modified;
+                setPlaidSnackbar({
+                  message:
+                    total === 0
+                      ? "Bank connected, but there were no new transactions to import."
+                      : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`,
+                  severity: total === 0 ? "info" : "success",
+                });
+              }}
+            />
+            <SyncBankButton onSynced={(summary) => {
+              fetchTransactions();
+              setPlaidSnackbar(
+                summary.itemsSynced === 0
+                  ? { message: "No bank connected yet — click Connect Bank first.", severity: "info" }
+                  : {
+                      message: `Bank refresh complete — ${summary.added + summary.modified} transaction(s) added or updated${summary.removed ? `, ${summary.removed} removed` : ""}.`,
+                      severity: "success",
+                    }
+              );
+            }} />
+            <Button variant="outlined" onClick={() => setManageBanksOpen(true)}>
+              Manage Banks
+            </Button>
+          </Stack>
+        </Grid>
       </Grid>
 
       {/* KPI CARDS + TABLE */}
@@ -247,25 +284,6 @@ export default function Transactions() {
             onOpenAdd={() => setOpenModal(true)}
             onOpenImport={() => setOpenImportModal(true)}
             onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
-            onPlaidImported={(summary) => {
-              fetchTransactions();
-              // No bank linked yet (only possible from the Refresh button)
-              if (summary.itemsSynced === 0) {
-                setPlaidSnackbar({
-                  message: "No bank connected yet — click Connect Bank first.",
-                  severity: "info",
-                });
-                return;
-              }
-              const total = summary.added + summary.modified;
-              setPlaidSnackbar({
-                message:
-                  total === 0
-                    ? "Already up to date — no new transactions."
-                    : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`,
-                severity: total === 0 ? "info" : "success",
-              });
-            }}
           />
         </Grid>
       </Grid>
@@ -288,6 +306,19 @@ export default function Transactions() {
         onImportComplete={() => {
           fetchTransactions();
           setSnackbarOpen(true);
+        }}
+      />
+
+      <ManageBanksButton
+        open={manageBanksOpen}
+        onClose={() => setManageBanksOpen(false)}
+        refreshKey={bankListRefreshKey}
+        onRemoved={() => {
+          setBankListRefreshKey((prev) => prev + 1);
+          setPlaidSnackbar({
+            message: "Bank connection removed. Existing imported transactions were kept.",
+            severity: "success",
+          });
         }}
       />
 
