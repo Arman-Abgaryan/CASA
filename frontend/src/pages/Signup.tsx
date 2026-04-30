@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Typography, Box, Paper, Button, Stack, TextField, Link } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
+import { API_BASE } from "../axiosConfig";
+
 export default function Signup() {
   const navigate = useNavigate();
 
@@ -16,7 +18,7 @@ export default function Signup() {
     e.preventDefault();
 
     try {
-      const res = await fetch("http://localhost:8080/api/auth/signup", {
+      const res = await fetch(`${API_BASE}/api/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
