@@ -9,8 +9,6 @@ import {
   Typography,
   Chip,
   Divider,
-  ToggleButtonGroup,
-  ToggleButton,
   Table,
   TableHead,
   TableRow,
@@ -25,8 +23,8 @@ import {
 import ArrowDropUpIcon from "@mui/icons-material/ArrowDropUp";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   ResponsiveContainer,
@@ -71,7 +69,8 @@ export default function Dashboard() {
   /* ---------------- Filter Transactions ---------------- */
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const monthShort = new Date(t.date).toLocaleString("en-US", { month: "short" });
+      const date = new Date(t.date);
+      const monthShort = MONTHS[date.getUTCMonth()];
       return monthShort === selectedMonth;
     });
   }, [transactions, selectedMonth]);
@@ -152,7 +151,7 @@ export default function Dashboard() {
     });
 
     transactions.forEach(t => {
-      const month = new Date(t.date).toLocaleString("en-US", { month: "short" });
+      const month = MONTHS[new Date(t.date).getUTCMonth()];
       if (t.amount > 0) {
         monthly[month].income += t.amount;
       } else {
@@ -170,7 +169,7 @@ export default function Dashboard() {
   const lastMonthIncome = useMemo(() => {
     return transactions
       .filter(t => {
-        const m = new Date(t.date).getMonth();
+        const m = new Date(t.date).getUTCMonth();
         return m === lastMonthIndex && t.amount > 0;
       })
       .reduce((s, t) => s + t.amount, 0);
@@ -179,7 +178,7 @@ export default function Dashboard() {
   const lastMonthExpenses = useMemo(() => {
     return transactions
       .filter(t => {
-        const m = new Date(t.date).getMonth();
+        const m = new Date(t.date).getUTCMonth();
         return m === lastMonthIndex && t.amount < 0;
       })
       .reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -225,7 +224,6 @@ export default function Dashboard() {
   const balanceDelta = calcDelta(currentMonthBalance, lastMonthBalance);
 
   const kpi = [
-    { label: "My Balance", value: currentMonthBalance, delta: balanceDelta, type: "balance" },
     { label: "Total Income", value: currentMonthIncome, delta: incomeDelta, type: "income" },
     { label: "Total Expenses", value: currentMonthExpenses, delta: expensesDelta, type: "expenses" },
   ];
@@ -309,7 +307,7 @@ export default function Dashboard() {
           }
 
           return (
-            <Grid item xs={12} md={6} lg={3} key={k.label}>
+            <Grid item xs={12} md={6} lg={3} key={k.label} mt={-2}>
               <Card variant="outlined" sx={{ borderRadius: 3 }}>
                 <CardContent>
                   <Stack direction="row" spacing={1} alignItems="center" mb={1}>
@@ -332,48 +330,34 @@ export default function Dashboard() {
       {/* ---------------- SUMMARY CHART ---------------- */}
       <Grid container spacing={2}>
         <Grid item xs={12} lg={8}>
-          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+          <Card variant="outlined" sx={{ borderRadius: 3, }}>
             <CardContent>
-              <Stack direction="row" justifyContent="space-between" mb={1}>
+              <Stack direction="row" justifyContent="space-between" mb={3}>
                 <Typography variant="subtitle1" fontWeight={700}>Summary</Typography>
-                <ToggleButtonGroup
-                  size="small"
-                  value={period}
-                  exclusive
-                  onChange={(_, v) => v && setPeriod(v)}
-                >
-                  <ToggleButton value="Daily">Daily</ToggleButton>
-                  <ToggleButton value="Weekly">Weekly</ToggleButton>
-                  <ToggleButton value="Monthly">Monthly</ToggleButton>
-                </ToggleButtonGroup>
               </Stack>
 
-              <Box sx={{ width: "100%", height: 280 }}>
+              <Box sx={{ width: "100%", height: 280, }}>
                 <ResponsiveContainer>
-                  <LineChart data={chartData}>
+                  <BarChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" />
-                    <YAxis />
+                    <YAxis tickCount={5} />
                     <Tooltip formatter={(v: number) => currency(v)} />
                     <Legend />
-                    <Line dataKey="income" name="Income" stroke="#6ec1e4" strokeWidth={3} dot={false} />
-                    <Line dataKey="expense" name="Expenses" stroke="#f5b971" strokeWidth={3} dot={false} />
-                  </LineChart>
+                    <Bar dataKey="income" name="Income" fill="#6ec1e4" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expense" name="Expenses" fill="#f5b971" radius={[4, 4, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
-        {/* ---------------- PIE CHART CARD ---------------- */}
         <Grid item xs={12} lg={4}>
           <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between">
                 <Typography variant="subtitle1" fontWeight={700}>Cash Flow</Typography>
-                <Select size="small" value="Last Month" disabled>
-                  <MenuItem value="Last Month">Last Month</MenuItem>
-                </Select>
               </Stack>
 
               <Box sx={{ width: "100%", height: 240 }}>
@@ -388,7 +372,7 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               </Box>
-
+                    
               <Stack direction="row" justifyContent="center" spacing={3} mt={1} mb={1}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Box sx={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: COLORS[0] }} />
@@ -399,7 +383,7 @@ export default function Dashboard() {
                   <Typography variant="body2">Expenses</Typography>
                 </Stack>
               </Stack>
-
+                    
               <Stack direction="row" justifyContent="center" spacing={1}>
                 <Typography variant="caption">Total</Typography>
                 <Typography fontWeight={800}>{currency(totalCashFlow)}</Typography>
@@ -407,53 +391,51 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </Grid>
+                    
+        {/* ---------------- TRANSACTIONS TABLE ---------------- */}
+        <Grid item xs={12}>
+          <Card variant="outlined" sx={{ borderRadius: 3 }}>
+            <CardContent>
+              <Stack direction="row" justifyContent="space-between" mb={1}>
+                <Typography variant="h6">Recent Transactions</Typography>
+                <Select size="small" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
+                  {MONTHS.map((m) => (
+                    <MenuItem key={m} value={m}>{m}</MenuItem>
+                  ))}
+                </Select>
+              </Stack>
+                
+              <Divider sx={{ mb: 1 }} />
+                
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Item Name</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell>Category</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                  </TableRow>
+                </TableHead>
+                
+                <TableBody>
+                  {filteredTransactions.slice(0, 5).map((t, idx) => (
+                    <TableRow key={idx} hover>
+                      <TableCell>{t.date}</TableCell>
+                      <TableCell>{t.description}</TableCell>
+                      <TableCell>{t.amount >= 0 ? "Income" : "Expense"}</TableCell>
+                      <TableCell>{t.category}</TableCell>
+                      <TableCell align="right" sx={{ color: t.amount < 0 ? "error.main" : "success.main", fontWeight: 700 }}>
+                        {currency(Math.abs(t.amount))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
-
-      {/* ---------------- TRANSACTIONS TABLE ---------------- */}
-      <Card variant="outlined" sx={{ borderRadius: 3 }}>
-        <CardContent>
-          <Stack direction="row" justifyContent="space-between" mb={1}>
-            <Typography variant="h6">Transactions</Typography>
-            <Select size="small" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-              {MONTHS.map((m) => (
-                <MenuItem key={m} value={m}>{m}</MenuItem>
-              ))}
-            </Select>
-          </Stack>
-
-          <Divider sx={{ mb: 1 }} />
-
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>Item Name</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Category</TableCell>
-                <TableCell align="right">Amount</TableCell>
-              </TableRow>
-            </TableHead>
-
-            <TableBody>
-              {filteredTransactions.slice(0, 5).map((t, idx) => (
-                <TableRow key={idx} hover>
-                  <TableCell>{t.date}</TableCell>
-                  <TableCell>{t.description}</TableCell>
-                  <TableCell>{t.amount >= 0 ? "Income" : "Expense"}</TableCell>
-                  <TableCell>
-                    <Typography sx={{ color: t.category === "Food" ? "orange" : "skyblue", fontWeight: 600 }}>
-                      {t.category}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right" sx={{ color: t.amount < 0 ? "error.main" : "success.main", fontWeight: 700 }}>
-                    {currency(Math.abs(t.amount))}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
     </Stack>
   );
 }

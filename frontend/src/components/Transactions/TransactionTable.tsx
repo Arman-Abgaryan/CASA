@@ -24,6 +24,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import { useState } from "react";
 import { CheckboxSelection } from "../CheckboxSelection";
+import EditIcon from "@mui/icons-material/Edit";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import { Menu, MenuItem } from "@mui/material"; 
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -36,7 +39,6 @@ interface Transaction {
   id: number;
   name: string;
   category: string;
-  account: string;
   date: string;
   status: string;
   amount: number;
@@ -49,6 +51,7 @@ interface Props {
   onBulkDelete: (ids: number[]) => void;
   onOpenAdd: () => void;
   onOpenImport: () => void;
+  onEdit: (tx: Transaction) => void;
 }
 
 export default function TransactionTable({
@@ -57,6 +60,7 @@ export default function TransactionTable({
   onBulkDelete,
   onOpenAdd,
   onOpenImport,
+  onEdit,
 }: Props) {
   const [search, setSearch] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
@@ -65,7 +69,6 @@ export default function TransactionTable({
   const SORT_MAP: Record<string, string> = {
     transaction: "name",
     category: "category",
-    account: "account",
     date: "date",
     status: "status",
     amount: "amount",
@@ -74,6 +77,24 @@ export default function TransactionTable({
   const filteredTx = transactions
     .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+const [menuTxId, setMenuTxId] = useState<number | null>(null);
+
+const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, id: number) => {
+  setMenuAnchor(e.currentTarget);
+  setMenuTxId(id);
+};
+
+const handleMenuClose = () => {
+  setMenuAnchor(null);
+  setMenuTxId(null);
+};
+
+const handleMenuDelete = () => {
+  if (menuTxId !== null) onDelete(menuTxId);
+  handleMenuClose();
+};
 
   return (
     <Card variant="outlined">
@@ -145,9 +166,9 @@ export default function TransactionTable({
                   />
                 </TableCell>
               )}
-              {["Transaction", "Category", "Account", "Date", "Status", "Amount", "Delete"].map(
+              {["Transaction", "Category", "Date", "Status", "Amount", ""].map(
                 (header) => (
-                  <TableCell key={header}>{header}</TableCell>
+                  <TableCell key={header}>{header === "actions" ? "" : header}</TableCell>
                 )
               )}
             </TableRow>
@@ -175,7 +196,6 @@ export default function TransactionTable({
                   </Stack>
                 </TableCell>
                 <TableCell>{t.category}</TableCell>
-                <TableCell>{t.account}</TableCell>
                 <TableCell>{t.date}</TableCell>
                 <TableCell>
                   <Chip
@@ -207,20 +227,28 @@ export default function TransactionTable({
                   {t.amount >= 0 ? "+" : "-"}
                   {currency(Math.abs(t.amount))}
                 </TableCell>
-                <TableCell align="left">
-                  <IconButton
-                    color="error"
-                    size="small"
-                    disabled={selectionMode}
-                    onClick={() => onDelete(t.id)}
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
+                  <TableCell align="left">
+                    <IconButton
+                      size="small"
+                      disabled={selectionMode}
+                      onClick={(e) => handleMenuOpen(e, t.id)}
+                      sx={{ color: "grey.500" }}
+                    >
+                      <MoreHorizIcon />
+                    </IconButton>
+                  </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+        <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
+          <MenuItem onClick={() => {onEdit(filteredTx.find(t => t.id === menuTxId)!); handleMenuClose(); }}>
+            <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
+          </MenuItem>
+          <MenuItem onClick={handleMenuDelete} sx={{ color: "error.main" }}>
+            <DeleteIcon fontSize="small" sx={{ mr: 1 }} /> Delete
+          </MenuItem>
+        </Menu>
       </CardContent>
     </Card>
   );

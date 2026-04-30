@@ -116,6 +116,25 @@ public class TransactionController {
     }
 
     /**
+     * Updates an existing transaction by ID.
+     *
+     * @param id The ID of the transaction to update.
+     * @param updated The updated transaction data.
+     * @param principal The authenticated user's principal.
+     * @return The updated transaction, or 403 if unauthorized.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateTransaction(@PathVariable Long id, @RequestBody Transaction updated,
+            Principal principal) {
+        User user = userService.getByEmail(principal.getName());
+        Transaction result = transactionService.updateTransaction(id, updated, user);
+        if (result == null) {
+            return ResponseEntity.status(403).body("Unauthorized or not found");
+        }
+        return ResponseEntity.ok(result);
+    }
+
+    /**
      * Returns all transactions for the logged-in user.
      *
      * @param principal The authenticated user's principal.

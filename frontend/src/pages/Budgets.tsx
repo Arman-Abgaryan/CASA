@@ -146,7 +146,8 @@ export default function Budgets() {
   else if (percentUsed >= 50) progressColor = "#EBC106";
 
   let statusMessage = "You're doing great!";
-  if (percentUsed >= 80) statusMessage = "Warning: You're close to exceeding your budget!";
+  if (percentUsed >= 100) statusMessage = "You have exceeded your budget for the month!";
+  else if (percentUsed >= 80) statusMessage = "Warning: You're close to exceeding your budget!";
   else if (percentUsed >= 50) statusMessage = "Careful — Spending is getting high!";
 
   // ---------------- PIE CHART CATEGORY DISTRIBUTION ---------------- //
@@ -247,7 +248,7 @@ export default function Budgets() {
         <Grid item xs={12} md={6}>
           <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
             <CardContent>
-              <Typography variant="h6" fontWeight={700}>Budget Overview</Typography>
+              <Typography variant="h6" fontWeight={700}>Spending Overview</Typography>
               <Divider sx={{ my: 2 }} />
 
               <Box sx={{ width: "100%", height: 400 }}>

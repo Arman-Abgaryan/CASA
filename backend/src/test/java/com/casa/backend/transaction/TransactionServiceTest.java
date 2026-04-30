@@ -7,7 +7,8 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.util.List;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -37,20 +38,22 @@ class TransactionServiceTest {
 
     @Test
     void importCSV_success() throws Exception {
-
-        // Example CSV content
         String csv = "date,description,amount,category\n" +
                 "2025-01-01,Starbucks,-4.75,Food\n" +
-                "2025-01-02,Salary,3000,Income\n";
+                "2025-01-02,Salary,3000.00,Income\n";
 
         MultipartFile mockFile = mock(MultipartFile.class);
         when(mockFile.getInputStream())
                 .thenReturn(new ByteArrayInputStream(csv.getBytes()));
 
         User user = new User();
+
+        when(repo.findByDateAndDescriptionAndAmountAndCategoryAndUser(
+                any(LocalDate.class), anyString(), any(BigDecimal.class), anyString(), any(User.class)))
+                .thenReturn(null);
+
         service.importCSV(mockFile, user);
 
-        // Should save 2 transactions
         verify(repo, times(2)).save(any(Transaction.class));
     }
 
@@ -58,7 +61,6 @@ class TransactionServiceTest {
     void importCSV_throwsException() throws Exception {
         MultipartFile mockFile = mock(MultipartFile.class);
 
-        // make getInputStream throw exception
         when(mockFile.getInputStream())
                 .thenThrow(new RuntimeException("bad file"));
 

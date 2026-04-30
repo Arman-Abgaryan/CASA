@@ -80,6 +80,26 @@ public class TransactionService {
     }
 
     /**
+     * Updates an existing transaction by ID.
+     *
+     * @param id The ID of the transaction to update.
+     * @param updated The updated transaction data.
+     * @param user The authenticated user.
+     * @return The updated Transaction, or null if not found or unauthorized.
+     */
+    public Transaction updateTransaction(Long id, Transaction updated, User user) {
+        Transaction existing = transactionRepository.findById(id).orElse(null);
+        if (existing == null || !existing.getUser().getId().equals(user.getId())) {
+            return null;
+        }
+        existing.setDescription(updated.getDescription());
+        existing.setCategory(updated.getCategory());
+        existing.setDate(updated.getDate());
+        existing.setAmount(updated.getAmount());
+        return transactionRepository.save(existing);
+    }
+
+    /**
      * Retrieves all transactions belonging to a specific user.
      *
      * @param user The authenticated user.

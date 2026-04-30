@@ -11,15 +11,17 @@ import {
   MenuItem,
   Snackbar,
   Alert,
+  Menu,
+  Checkbox,
+  ListItemText,
+  Badge,
 } from "@mui/material";
 
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-
 import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
-
 import AddTransactionModal from "../components/Transactions/AddTransactionModal";
 import ImportCSVModal from "../components/Transactions/ImportCSVModal";
 import TransactionTable from "../components/Transactions/TransactionTable";
@@ -35,12 +37,12 @@ export default function Transactions() {
   const { isLoggedIn } = useAuth();
 
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [breakdown, setBreakdown] = useState("By Category");
   const [dateRange, setDateRange] = useState("This Month");
   const [openModal, setOpenModal] = useState(false);
   const [openImportModal, setOpenImportModal] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
+  const [editSnackbar, setEditSnackbar] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -59,7 +61,6 @@ export default function Transactions() {
         id: t.id,
         name: t.description,
         category: t.category,
-        account: "Bank",
         date: t.date,
         status: "completed",
         amount: Number(t.amount),
@@ -77,7 +78,7 @@ export default function Transactions() {
   }, [isLoggedIn]);
 
   // -----------------------------------------------------
-  // Delete Single
+  // Delete Single Transactions
   // -----------------------------------------------------
   async function handleDelete(id: number) {
     try {
@@ -90,7 +91,7 @@ export default function Transactions() {
   }
 
   // -----------------------------------------------------
-  // Delete Bulk
+  // Delete Multiple Transactions
   // -----------------------------------------------------
   async function handleBulkDelete(ids: number[]) {
     try {
@@ -102,7 +103,6 @@ export default function Transactions() {
       alert("Failed to delete selected transactions");
     }
   }
-
   // -----------------------------------------------------
   // Totals
   // -----------------------------------------------------
@@ -118,6 +118,39 @@ export default function Transactions() {
 
   const netAmount = totalIncome - totalExpenses;
 
+  // -----------------------------------------------------
+  // Edit Transaction
+  // -----------------------------------------------------
+  const [editTx, setEditTx] = useState<any>(null);
+
+  // -----------------------------------------------------
+  // Filter Category
+  // -----------------------------------------------------
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [filterAnchor, setFilterAnchor] = useState<null | HTMLElement>(null);
+
+  const CATEGORIES = ["Food", "Paycheck", "Bills", "Shopping", "Vacation", "Transport", "Entertainment", "Health", "Other"];
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const date = new Date(t.date);
+      const now = new Date();
+
+      let dateMatch = true;
+      if (dateRange === "This Month")
+        dateMatch = date.getUTCMonth() === now.getMonth() && date.getUTCFullYear() === now.getFullYear();
+      else if (dateRange === "Last Month") {
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+        dateMatch = date.getUTCMonth() === lastMonth.getMonth() && date.getUTCFullYear() === lastMonth.getFullYear();
+    }
+    else if (dateRange === "This Year")
+      dateMatch = date.getUTCFullYear() === now.getFullYear();
+
+    const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(t.category);
+    return dateMatch && categoryMatch;
+    });
+  }, [transactions, dateRange, selectedCategories])
+
   return (
     <Stack spacing={3}>
       {/* HEADER */}
@@ -131,13 +164,6 @@ export default function Transactions() {
       {/* FILTERS */}
       <Grid container spacing={2} alignItems="center">
         <Grid item xs={12} md={3}>
-          <Select size="small" value={breakdown} onChange={(e) => setBreakdown(e.target.value)} fullWidth>
-            <MenuItem value="By Category">By Category</MenuItem>
-            <MenuItem value="By Account">By Account</MenuItem>
-            <MenuItem value="By Status">By Status</MenuItem>
-          </Select>
-        </Grid>
-        <Grid item xs={12} md={3}>
           <Select size="small" value={dateRange} onChange={(e) => setDateRange(e.target.value)} fullWidth>
             <MenuItem value="This Month">This Month</MenuItem>
             <MenuItem value="Last Month">Last Month</MenuItem>
@@ -145,13 +171,34 @@ export default function Transactions() {
           </Select>
         </Grid>
         <Grid item xs={12} md={3}>
-          <Button variant="outlined" startIcon={<FilterListIcon />} fullWidth sx={{ height: 40 }}>
-            Filters
-          </Button>
+          <Badge badgeContent={selectedCategories.length} color="primary">
+            <Button
+              variant = "outlined"
+              startIcon = {<FilterListIcon />}
+              fullWidth
+              sx = {{ height: 40 }}
+              onClick={(e) => setFilterAnchor(e.currentTarget)}
+            >
+              Filter By Category
+            </Button>
+          </Badge>
+          <Menu anchorEl={filterAnchor} open={Boolean(filterAnchor)} onClose={() => setFilterAnchor(null)}>
+            {CATEGORIES.map(cat => (
+              <MenuItem key={cat} onClick={() => setSelectedCategories(prev =>
+                prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+              )}>
+                <Checkbox checked={selectedCategories.includes(cat)} size="small" />
+                <ListItemText primary = {cat} />
+              </MenuItem>
+            ))}
+            <MenuItem onClick={() => setSelectedCategories([])}>
+              <Typography variant = "body2" color = "error"> Clear All </Typography>
+            </MenuItem>
+          </Menu>
         </Grid>
       </Grid>
 
-      {/* KPI CARDS */}
+      {/* KPI CARDS + TABLE */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <Card variant="outlined" sx={{ borderRadius: 3 }}>
@@ -187,25 +234,29 @@ export default function Transactions() {
             </CardContent>
           </Card>
         </Grid>
-      </Grid>
 
-      {/* TABLE */}
-      <TransactionTable
-        transactions={transactions}
-        onDelete={handleDelete}
-        onBulkDelete={handleBulkDelete}
-        onOpenAdd={() => setOpenModal(true)}
-        onOpenImport={() => setOpenImportModal(true)}
-      />
+        <Grid item xs={12}>
+          <TransactionTable
+            transactions={filteredTransactions}
+            onDelete={handleDelete}
+            onBulkDelete={handleBulkDelete}
+            onOpenAdd={() => setOpenModal(true)}
+            onOpenImport={() => setOpenImportModal(true)}
+            onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
+          />
+        </Grid>
+      </Grid>
 
       {/* MODALS */}
       <AddTransactionModal
         open={openModal}
-        onClose={() => setOpenModal(false)}
+        onClose={() => { setOpenModal(false); setEditTx(null); }} 
         onTransactionAdded={() => {
           fetchTransactions();
-          setSnackbarOpen(true);
+          if (editTx) setEditSnackbar(true);
+          else setSnackbarOpen(true);
         }}
+        editTransaction={editTx}
       />
 
       <ImportCSVModal
@@ -224,6 +275,9 @@ export default function Transactions() {
 
       <Snackbar open={deleteSnackbar} autoHideDuration={3000} onClose={() => setDeleteSnackbar(false)}>
         <Alert severity="success" variant="filled">Transaction deleted!</Alert>
+      </Snackbar>
+      <Snackbar open={editSnackbar} autoHideDuration={3000} onClose={() => setEditSnackbar(false)}>
+        <Alert severity="success" variant="filled">Transaction updated!</Alert>
       </Snackbar>
     </Stack>
   );
