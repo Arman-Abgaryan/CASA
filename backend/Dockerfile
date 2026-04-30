@@ -8,5 +8,5 @@ RUN mvn -q -e -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
+EXPOSE 10000
 ENTRYPOINT ["java","-jar","/app/app.jar"]
