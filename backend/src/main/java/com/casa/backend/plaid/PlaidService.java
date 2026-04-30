@@ -182,13 +182,13 @@ public class PlaidService {
             TransactionsSyncResponse body = response.body();
 
             for (com.plaid.client.model.Transaction plaidTx : body.getAdded()) {
-                if (savePlaidTransaction(plaidTx, user)) {
+                if (savePlaidTransaction(plaidTx, user, item)) {
                     added++;
                 }
             }
 
             for (com.plaid.client.model.Transaction plaidTx : body.getModified()) {
-                if (updatePlaidTransaction(plaidTx, user)) {
+                if (updatePlaidTransaction(plaidTx, user, item)) {
                     modified++;
                 }
             }
@@ -218,7 +218,7 @@ public class PlaidService {
      * Skips if we've already saved this plaid_transaction_id.
      * Returns true if a new row was inserted.
      */
-    private boolean savePlaidTransaction(com.plaid.client.model.Transaction plaidTx, User user) {
+    private boolean savePlaidTransaction(com.plaid.client.model.Transaction plaidTx, User user, PlaidItem item) {
         // Idempotency guard: don't double-save if cursor was lost mid-sync
         Transaction existing = transactionRepository.findByPlaidTransactionIdAndUser(
                 plaidTx.getTransactionId(), user);
@@ -231,6 +231,7 @@ public class PlaidService {
                 .description(plaidTx.getName() != null ? plaidTx.getName() : "Unknown")
                 .amount(plaidAmountToOurSign(plaidTx.getAmount()))
                 .category(mapPlaidCategory(plaidTx))
+                .bankName(item.getInstitutionName() != null ? item.getInstitutionName() : "Bank")
                 .build();
 
         transactionRepository.save(tx);
@@ -241,18 +242,22 @@ public class PlaidService {
      * If Plaid reports a modified transaction (e.g. pending → posted), update
      * the matching row in place. Returns true if we found and updated a row.
      */
-    private boolean updatePlaidTransaction(com.plaid.client.model.Transaction plaidTx, User user) {
+    private boolean updatePlaidTransaction(com.plaid.client.model.Transaction plaidTx, User user, PlaidItem item) {
         Transaction existing = transactionRepository.findByPlaidTransactionIdAndUser(
                 plaidTx.getTransactionId(), user);
         if (existing == null) {
             // Modified before we'd ever seen it — treat as add
-            return savePlaidTransaction(plaidTx, user);
+            return savePlaidTransaction(plaidTx, user, item);
         }
 
         existing.setDate(plaidTx.getDate());
         existing.setDescription(plaidTx.getName() != null ? plaidTx.getName() : existing.getDescription());
         existing.setAmount(plaidAmountToOurSign(plaidTx.getAmount()));
         existing.setCategory(mapPlaidCategory(plaidTx));
+        // Refresh bankName in case the user renamed the linked institution.
+        if (item.getInstitutionName() != null) {
+            existing.setBankName(item.getInstitutionName());
+        }
         transactionRepository.save(existing);
         return true;
     }

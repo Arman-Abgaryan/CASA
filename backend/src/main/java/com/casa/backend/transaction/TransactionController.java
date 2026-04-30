@@ -66,6 +66,11 @@ public class TransactionController {
         User user = userService.getByEmail(principal.getName());
 
         transaction.setUser(user); // associate user
+        // Manually-added transactions have no bank source. Label them so the UI
+        // can render the Bank column consistently.
+        if (transaction.getBankName() == null || transaction.getBankName().isBlank()) {
+            transaction.setBankName("Manual");
+        }
 
         transactionService.saveTransaction(transaction);
 
