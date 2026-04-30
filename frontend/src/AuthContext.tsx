@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { API_BASE } from "./axiosConfig";
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -24,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/auth/me", {
+    fetch(`${API_BASE}/api/auth/me`, {
       credentials: "include",
     })
       .then(res => {
