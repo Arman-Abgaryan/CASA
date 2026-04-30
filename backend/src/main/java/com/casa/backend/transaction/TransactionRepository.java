@@ -10,8 +10,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.time.LocalDate;
-import java.math.BigDecimal;
 
 /**
  * Repository interface for performing CRUD operations on transactions.
@@ -22,19 +20,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /**
      * Retrieves all transaction that belong to a specific user.
-     *
-     * @param user The user whose transactions should be returned
-     * @return A list of transactions belonging to the user.
      */
     List<Transaction> findAllByUser(User user);
 
     /**
      * Deletes all transactions whose IDs are in the provided list and belong to the
-     * specified user.
-     * Used for bulk delete operations.
-     *
-     * @param ids The list of transaction IDs to delete.
-     * @param user The user who owns the transactions.
+     * specified user. Used for bulk delete operations.
      */
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
@@ -42,15 +33,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /**
      * Finds a transaction matching all provided fields for a specific user.
-     * Used for deduplication during CSV import to avoid saving duplicate
-     * transactions.
-     *
-     * @param date The transaction date.
-     * @param description The transaction description.
-     * @param amount The transaction amount.
-     * @param category The transaction category.
-     * @param user The user who owns the transaction.
-     * @return The matching Transaction if found, or null if no match exists.
+     * Used for deduplication during CSV import.
      */
-    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(LocalDate date, String description, BigDecimal amount, String category, User user);
+    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(
+            LocalDate date, String description, BigDecimal amount, String category, User user);
+
+    /**
+     * Looks up a transaction by Plaid's stable transaction ID, scoped to a user.
+     * Used during Plaid sync to skip transactions we've already imported.
+     */
+    Transaction findByPlaidTransactionIdAndUser(String plaidTransactionId, User user);
+
+    /**
+     * Deletes a transaction by Plaid transaction_id and user.
+     * Used when Plaid reports a removed transaction during sync.
+     */
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.plaidTransactionId = :plaidId AND t.user = :user")
+    void deleteByPlaidTransactionIdAndUser(@Param("plaidId") String plaidId, @Param("user") User user);
 }
