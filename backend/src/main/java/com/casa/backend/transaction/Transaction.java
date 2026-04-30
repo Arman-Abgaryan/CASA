@@ -50,4 +50,11 @@ public class Transaction {
      * Positive = income, Negative = expense.
      */
     private BigDecimal amount;
+
+    /**
+     * Plaid's stable transaction_id, set only for transactions imported from Plaid.
+     * Used to dedupe incremental syncs. NULL for manually-added or CSV-imported rows.
+     */
+    @Column(name = "plaid_transaction_id", length = 100)
+    private String plaidTransactionId;
 }

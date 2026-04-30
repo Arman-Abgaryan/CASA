@@ -26,80 +26,54 @@ import {
 } from "recharts";
 
 import ProgressBar from "../components/ProgressBar";
+import api from "../axiosConfig";
+import { useAuth } from "../AuthContext";
 
 export default function Budgets() {
   const navigate = useNavigate();
-
-  // --------------------- Login Check --------------------- //
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("loggedIn");
-    const email = localStorage.getItem("email");
-
-    setIsLoggedIn(Boolean(loggedIn && email));
-    setCheckingAuth(false);
-  }, []);
+  const { isLoggedIn } = useAuth();
 
   // --------------------- Budget State --------------------- //
   const [budgets, setBudgets] = useState([]);
 
   useEffect(() => {
-    if (!checkingAuth && !isLoggedIn) {
-      setBudgets([]); // Clear budgets on logout
+    if (!isLoggedIn) {
+      setBudgets([]);
     }
-  }, [checkingAuth, isLoggedIn]);
+  }, [isLoggedIn]);
 
   const fetchBudgets = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/budgets", {
-        credentials: "include",
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setBudgets(data);
-      }
+      const res = await api.get("/api/budgets");
+      setBudgets(res.data);
     } catch (err) {
       console.error("Failed to load budgets:", err);
     }
   };
 
   useEffect(() => {
-    if (isLoggedIn) {
-      fetchBudgets();
-    }
+    if (isLoggedIn) fetchBudgets();
   }, [isLoggedIn]);
 
   // --------------------- Transactions --------------------- //
   const [transactions, setTransactions] = useState([]);
 
-async function fetchUserData() {
-  try {
-    const res = await fetch("http://localhost:8080/api/transactions", {
-      method: "GET",
-      credentials: "include",
-    });
-
-    if (!res.ok) return;
-
-    const data = await res.json();
-
-    const transformed = data.map((t: any) => ({
-      id: t.id,
-      name: t.description,
-      category: t.category || "Uncategorized",
-      date: t.date,
-      amount: Number(t.amount),
-      type: Number(t.amount) >= 0 ? "income" : "expense",
-    }));
-
-    setTransactions(transformed);
-  } catch (err) {
-    console.error("Failed to fetch user data", err);
+  async function fetchUserData() {
+    try {
+      const res = await api.get("/api/transactions");
+      const transformed = res.data.map((t: any) => ({
+        id: t.id,
+        name: t.description,
+        category: t.category || "Uncategorized",
+        date: t.date,
+        amount: Number(t.amount),
+        type: Number(t.amount) >= 0 ? "income" : "expense",
+      }));
+      setTransactions(transformed);
+    } catch (err) {
+      console.error("Failed to fetch user data", err);
+    }
   }
-}
 
   useEffect(() => {
     if (isLoggedIn) fetchUserData();
@@ -127,20 +101,9 @@ async function fetchUserData() {
   };
 
   const handleSaveBudget = async () => {
-    const newBudget = {
-      maxAmount: Number(budgetAmount),
-    };
-
     try {
-      const res = await fetch("http://localhost:8080/api/budgets", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newBudget),
-      });
-
-      const saved = await res.json();
-      setBudgets([...budgets, saved]);
+      const res = await api.post("/api/budgets", { maxAmount: Number(budgetAmount) });
+      setBudgets([...budgets, res.data]);
       handleClose();
     } catch (err) {
       console.error("Failed to save budget", err);
@@ -148,20 +111,13 @@ async function fetchUserData() {
   };
 
   const handleResetBudgets = async () => {
-    const confirmReset = window.confirm(
-      "Are you sure you want to reset this month's budget?"
-    );
-
+    const confirmReset = window.confirm("Are you sure you want to reset this month's budget?");
     if (!confirmReset) return;
 
     try {
       for (const b of budgets) {
-        await fetch(`http://localhost:8080/api/budgets/${b.id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
+        await api.delete(`/api/budgets/${b.id}`);
       }
-
       setBudgets([]);
       setOpenAddBudget(true);
     } catch (err) {
@@ -190,50 +146,52 @@ async function fetchUserData() {
   else if (percentUsed >= 50) progressColor = "#EBC106";
 
   let statusMessage = "You're doing great!";
-  if (percentUsed >= 80) statusMessage = "Warning: You’re close to exceeding your budget!";
+  if (percentUsed >= 100) statusMessage = "You have exceeded your budget for the month!";
+  else if (percentUsed >= 80) statusMessage = "Warning: You're close to exceeding your budget!";
   else if (percentUsed >= 50) statusMessage = "Careful — Spending is getting high!";
 
   // ---------------- PIE CHART CATEGORY DISTRIBUTION ---------------- //
-
-  // Only expenses for this month
   const monthlyExpensesOnly = monthlyTransactions.filter(t => t.amount < 0);
 
-  // Group spending by category
   const categoryMap: Record<string, number> = {};
-
   monthlyExpensesOnly.forEach(t => {
     const cat = t.category || "Uncategorized";
     const amt = Math.abs(t.amount);
-
     if (!categoryMap[cat]) categoryMap[cat] = 0;
     categoryMap[cat] += amt;
   });
 
-  // Convert to Recharts format
-  const pieData = Object.entries(categoryMap).map(([name, value]) => ({
-    name,
-    value
-  }));
+  const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
 
   const PIE_COLORS = [
     "#6EC1E4", "#F5B971", "#9CCC65",
     "#BA68C8", "#FF8A65", "#4DB6AC"
   ];
 
-  if (checkingAuth) return null;
+  const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 60;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  if (percent < 0.02) return null;
+
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#333" fontFamily="Roboto, sans-serif">
+      <tspan x={x} dy="-0.4em" fontWeight="bold" fill="#333">{`${(percent * 100).toFixed(0)}%`}</tspan>
+      <tspan x={x} dy="1.2em" fill="#666">{name}</tspan>
+    </text>
+  );
+};
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight="bold">
-        Budgets
-      </Typography>
-
+      <Typography variant="h4" fontWeight="bold">Budgets</Typography>
       <Typography variant="body1" color="text.secondary" mb={2}>
         Track your spending and budget limits.
       </Typography>
 
       <Grid container spacing={3}>
-
         {/* ---------------- LEFT: Monthly Budget Summary ---------------- */}
         <Grid item xs={12} md={6}>
           <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
@@ -256,27 +214,19 @@ async function fetchUserData() {
                   <Box sx={{ mt: 2, mb: 1 }}>
                     <ProgressBar current={totalExpenses} target={totalBudget} color={progressColor} />
                   </Box>
-
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                     {statusMessage}
                   </Typography>
                 </>
               ) : (
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  No budget set for this month. Click “Add Budget” to begin!
+                  No budget set for this month. Click "Add Budget" to begin!
                 </Typography>
               )}
 
               <Button
                 variant="contained"
-                sx={{
-                  backgroundColor: "green",
-                  color: "white",
-                  borderRadius: 2,
-                  mb: 2,
-                  mt: 2,
-                  "&:hover": { backgroundColor: "#006B01" },
-                }}
+                sx={{ backgroundColor: "green", color: "white", borderRadius: 2, mb: 2, mt: 2, "&:hover": { backgroundColor: "#006B01" } }}
                 onClick={handleAddBudget}
               >
                 + Add Budget
@@ -285,13 +235,7 @@ async function fetchUserData() {
               <Button
                 variant="outlined"
                 color="error"
-                sx={{
-                  borderRadius: 2,
-                  ml: 2,
-                  borderColor: "error.main",
-                  color: "error.main",
-                  "&:hover": { backgroundColor: "#ffebeb" },
-                }}
+                sx={{ borderRadius: 2, ml: 2, borderColor: "error.main", color: "error.main", "&:hover": { backgroundColor: "#ffebeb" } }}
                 onClick={handleResetBudgets}
               >
                 Reset Budget
@@ -304,22 +248,19 @@ async function fetchUserData() {
         <Grid item xs={12} md={6}>
           <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
             <CardContent>
-              <Typography variant="h6" fontWeight={700}>
-                Budget Overview
-              </Typography>
-
+              <Typography variant="h6" fontWeight={700}>Spending Overview</Typography>
               <Divider sx={{ my: 2 }} />
 
-              <Box sx={{ width: "100%", height: 240 }}>
+              <Box sx={{ width: "100%", height: 400 }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie
                       data={pieData}
                       dataKey="value"
                       nameKey="name"
-                      outerRadius={85}
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={130}
+                      labelLine={true}
+                      label={renderCustomLabel}
                     >
                       {pieData.map((_, i) => (
                         <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
@@ -327,37 +268,6 @@ async function fetchUserData() {
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
-              </Box>
-            {/* ---------- Legend Below Pie Chart ---------- */}
-            <Box sx={{ mt: 3, ml: 1 }}>
-              {pieData.map((item, i) => {
-                const color =
-                  item.name.toLowerCase() === "other"
-                    ? "#F5B971"
-                    : PIE_COLORS[i % PIE_COLORS.length];
-              
-                return (
-                  <Stack
-                    key={i}
-                    direction="row"
-                    alignItems="center"
-                    spacing={1.2}
-                    sx={{ mb: 0.8 }}
-                  >
-                    <Box
-                      sx={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 2,
-                        backgroundColor: color,
-                      }}
-                    />
-                    <Typography variant="body2">
-                      {item.name}
-                    </Typography>
-                  </Stack>
-                );
-              })}
               </Box>
             </CardContent>
           </Card>
@@ -367,15 +277,7 @@ async function fetchUserData() {
       {/* ---------------- Add Budget Dialog ---------------- */}
       <Dialog open={openAddBudget} onClose={handleClose} fullWidth maxWidth="sm">
         <DialogTitle>Add Budget</DialogTitle>
-
-        <DialogContent
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-            mt: -1,
-          }}
-        >
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, mt: -1 }}>
           <TextField
             label="Budget Amount"
             type="number"
@@ -386,28 +288,16 @@ async function fetchUserData() {
             sx={{ mt: 0.8 }}
           />
         </DialogContent>
-
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-
-          <Button
-            variant="contained"
-            sx={{ backgroundColor: "green" }}
-            onClick={handleSaveBudget}
-          >
+          <Button variant="contained" sx={{ backgroundColor: "green" }} onClick={handleSaveBudget}>
             Save
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={resetSnackbar}
-        autoHideDuration={3000}
-        onClose={() => setResetSnackbar(false)}
-      >
-        <Alert severity="info" variant="filled">
-          Monthly budget has been reset
-        </Alert>
+      <Snackbar open={resetSnackbar} autoHideDuration={3000} onClose={() => setResetSnackbar(false)}>
+        <Alert severity="info" variant="filled">Monthly budget has been reset</Alert>
       </Snackbar>
     </Box>
   );

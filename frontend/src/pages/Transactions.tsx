@@ -7,43 +7,24 @@ import {
   Typography,
   Grid,
   Button,
-  TextField,
   Select,
   MenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Chip,
-  Divider,
   Snackbar,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TableSortLabel,
-  IconButton,
-  Checkbox
+  Menu,
+  Checkbox,
+  ListItemText,
+  Badge,
 } from "@mui/material";
 
 import FilterListIcon from "@mui/icons-material/FilterList";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PendingIcon from "@mui/icons-material/AccessTime";
-import FileDownloadIcon from "@mui/icons-material/FileDownload";
-import DeleteIcon from '@mui/icons-material/Delete';
-
-import { CheckboxSelection } from "../components/CheckboxSelection";
-
-import axios from "axios";
-
-// -----------------------------------------------------
-// CONSTANTS
-// -----------------------------------------------------
-const COLORS = ["#6ec1e4", "#f5b971", "#9ccc65", "#ba68c8", "#ff8a65"];
+import api from "../axiosConfig";
+import { useAuth } from "../AuthContext";
+import AddTransactionModal from "../components/Transactions/AddTransactionModal";
+import ImportCSVModal from "../components/Transactions/ImportCSVModal";
+import TransactionTable from "../components/Transactions/TransactionTable";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -53,248 +34,129 @@ const currency = (n: number) =>
   });
 
 export default function Transactions() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("loggedIn");
-    const email = localStorage.getItem("email");
-
-    setIsLoggedIn(Boolean(loggedIn && email));
-    setCheckingAuth(false);
-  }, []);
+  const { isLoggedIn } = useAuth();
 
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [breakdown, setBreakdown] = useState("By Category");
   const [dateRange, setDateRange] = useState("This Month");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [sortBy, setSortBy] = useState<string>("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-
   const [openModal, setOpenModal] = useState(false);
+  const [openImportModal, setOpenImportModal] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
-
-  const [newTx, setNewTx] = useState({
-    name: "",
-    category: "",
-    account: "",
-    date: "",
-    amount: "",
-    type: "income",
-    status: "pending",
-  });
+  const [editSnackbar, setEditSnackbar] = useState(false);
+  const [plaidSnackbar, setPlaidSnackbar] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!checkingAuth && !isLoggedIn) {
-      setTransactions([]); // Clears transactions if logged out
+    if (!isLoggedIn) {
+      setTransactions([]);
     }
-  }, [checkingAuth, isLoggedIn]);
-
-  // SORT FIELD MAPPING
-  const SORT_MAP: Record<string, string> = {
-    transaction: "name",
-    category: "category",
-    account: "account",
-    date: "date",
-    status: "status",
-    amount: "amount",
-  };
-
-  // -----------------------------------------------------
-  // Fetch User Transactions
-  // -----------------------------------------------------
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const fetchTransactions = async () => {
-      try {
-        const res = await axios.get("http://localhost:8080/api/transactions", {
-          withCredentials: true,
-        });
-
-        const transformed = res.data.map((t: any, index: number) => ({
-          id: t.id,
-          name: t.description,
-          category: t.category,
-          account: "Bank",
-          date: t.date,
-          status: "completed",
-          amount: Number(t.amount),
-          type: Number(t.amount) >= 0 ? "income" : "expense",
-        }));
-
-        setTransactions(transformed);
-      } catch (err) {
-        console.error("Failed to fetch transactions:", err);
-      }
-    };
-
-    fetchTransactions();
   }, [isLoggedIn]);
 
-  // Add new transaction
-  const handleAddTransaction = async () => {
-    const parsedAmount = Number(newTx.amount);
-
-    if (!newTx.name || !newTx.category || isNaN(parsedAmount)) {
-      alert("Please fill all required fields correctly.");
-      return;
-    }
-
+  // -----------------------------------------------------
+  // Fetch Transactions
+  // -----------------------------------------------------
+  const fetchTransactions = async () => {
     try {
-      const txToSave = {
-        description: newTx.name,
-        category: newTx.category,
-        date: newTx.date || new Date().toISOString().split("T")[0],
-        amount:
-          newTx.type === "expense"
-            ? -Math.abs(parsedAmount)
-            : Math.abs(parsedAmount),
-      };
+      const res = await api.get("/api/transactions");
 
-      await axios.post("http://localhost:8080/api/transactions/add", txToSave, {
-        withCredentials: true,
-      });
-
-      const res = await axios.get("http://localhost:8080/api/transactions", {
-        withCredentials: true,
-      });
-
-      const transformed = res.data.map((t: any, index: number) => ({
+      const transformed = res.data.map((t: any) => ({
         id: t.id,
         name: t.description,
         category: t.category,
-        account: "Bank",
         date: t.date,
         status: "completed",
-        amount: t.amount,
-        type: t.amount >= 0 ? "income" : "expense",
+        amount: Number(t.amount),
+        type: Number(t.amount) >= 0 ? "income" : "expense",
       }));
 
       setTransactions(transformed);
-      setSnackbarOpen(true);
-      setOpenModal(false);
     } catch (err) {
-      console.error("Failed to save transaction:", err);
-      alert("Failed to save transaction.");
+      console.error("Failed to fetch transactions:", err);
     }
-
-    setNewTx({
-      name: "",
-      category: "",
-      account: "",
-      date: "",
-      amount: "",
-      type: "income",
-      status: "pending",
-    });
   };
 
+  useEffect(() => {
+    if (isLoggedIn) fetchTransactions();
+  }, [isLoggedIn]);
+
+  // -----------------------------------------------------
+  // Delete Single Transactions
+  // -----------------------------------------------------
+  async function handleDelete(id: number) {
+    try {
+      await api.delete(`/api/transactions/${id}`);
+      setTransactions(prev => prev.filter(t => t.id !== id));
+      setDeleteSnackbar(true);
+    } catch (err) {
+      console.error("Delete error", err);
+    }
+  }
+
+  // -----------------------------------------------------
+  // Delete Multiple Transactions
+  // -----------------------------------------------------
+  async function handleBulkDelete(ids: number[]) {
+    try {
+      await api.delete("/api/transactions/bulk", { data: ids });
+      setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
+      setDeleteSnackbar(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete selected transactions");
+    }
+  }
+  // -----------------------------------------------------
   // Totals
+  // -----------------------------------------------------
   const totalIncome = useMemo(
-    () =>
-      transactions
-        .filter((t) => t.amount > 0)
-        .reduce((a, b) => a + b.amount, 0),
+    () => transactions.filter(t => t.amount > 0).reduce((a, b) => a + b.amount, 0),
     [transactions]
   );
 
   const totalExpenses = useMemo(
-    () =>
-      transactions
-        .filter((t) => t.amount < 0)
-        .reduce((a, b) => a + Math.abs(b.amount), 0),
+    () => transactions.filter(t => t.amount < 0).reduce((a, b) => a + Math.abs(b.amount), 0),
     [transactions]
   );
 
   const netAmount = totalIncome - totalExpenses;
 
-  // Filtering + Sorting
-  const filteredTx = transactions
-    .filter((t) => t.name.toLowerCase().includes(search.toLowerCase()))
-    .filter((t) => (statusFilter === "All" ? true : t.status === statusFilter))
-    .sort((a, b) => {
-      const sortKey = SORT_MAP[sortBy];
-      const valA = a[sortKey];
-      const valB = b[sortKey];
+  // -----------------------------------------------------
+  // Edit Transaction
+  // -----------------------------------------------------
+  const [editTx, setEditTx] = useState<any>(null);
 
-      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
-      return 0;
+  // -----------------------------------------------------
+  // Filter Category
+  // -----------------------------------------------------
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [filterAnchor, setFilterAnchor] = useState<null | HTMLElement>(null);
+
+  const CATEGORIES = ["Food", "Paycheck", "Bills", "Shopping", "Vacation", "Transport", "Entertainment", "Health", "Other"];
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const date = new Date(t.date);
+      const now = new Date();
+
+      let dateMatch = true;
+      if (dateRange === "This Month")
+        dateMatch = date.getUTCMonth() === now.getMonth() && date.getUTCFullYear() === now.getFullYear();
+      else if (dateRange === "Last Month") {
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+        dateMatch = date.getUTCMonth() === lastMonth.getMonth() && date.getUTCFullYear() === lastMonth.getFullYear();
+    }
+    else if (dateRange === "This Year")
+      dateMatch = date.getUTCFullYear() === now.getFullYear();
+
+    const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(t.category);
+    return dateMatch && categoryMatch;
     });
-
-    // Delete transactions
-
-    // Delete Single Transaction
-    async function handleDelete(id: number) {
-      try {
-        const res = await fetch(`http://localhost:8080/api/transactions/${id}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
-
-        if (res.ok) {
-          // Remove from UI
-          setTransactions(prev => prev.filter(t => t.id !== id));
-          setDeleteSnackbar(true);
-        } else {
-          console.error("Failed to delete");
-        }
-      } catch (err) {
-        console.error("Delete error", err);
-      }
-    }
-
-    // Select Multiple Transactions
-    const [selectionMode, setSelectionMode] = useState(false);
-
-    const selection = CheckboxSelection<number>();
-
-    // Delete Multiple Transactions
-    async function handleBulkDelete() {
-      const ids = Array.from(selection.selected);
-
-      if (ids.length === 0) return;
-
-      try {
-        const res = await fetch("http://localhost:8080/api/transactions/bulk", {
-          method: "DELETE",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(ids),
-        });
-      
-        if (!res.ok) {
-          throw new Error("Bulk delete failed");
-        }
-      
-        // Remove deleted transactions from UI
-        setTransactions(prev =>
-          prev.filter(t => !selection.selected.has(t.id))
-        );
-      
-        selection.clear();
-        setSelectionMode(false);
-        setDeleteSnackbar(true);
-      
-      } catch (err) {
-        console.error(err);
-        alert("Failed to delete selected transactions");
-      }
-    }
+  }, [transactions, dateRange, selectedCategories])
 
   return (
     <Stack spacing={3}>
       {/* HEADER */}
       <Box>
-        <Typography variant="h4" fontWeight={800}>
-          Transactions
-        </Typography>
+        <Typography variant="h4" fontWeight={800}>Transactions</Typography>
         <Typography variant="subtitle1" color="text.secondary" mb={-2}>
           Comprehensive view of your finances
         </Typography>
@@ -303,42 +165,41 @@ export default function Transactions() {
       {/* FILTERS */}
       <Grid container spacing={2} alignItems="center">
         <Grid item xs={12} md={3}>
-          <Select
-            size="small"
-            value={breakdown}
-            onChange={(e) => setBreakdown(e.target.value)}
-            fullWidth
-          >
-            <MenuItem value="By Category">By Category</MenuItem>
-            <MenuItem value="By Account">By Account</MenuItem>
-            <MenuItem value="By Status">By Status</MenuItem>
-          </Select>
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <Select
-            size="small"
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            fullWidth
-          >
+          <Select size="small" value={dateRange} onChange={(e) => setDateRange(e.target.value)} fullWidth>
             <MenuItem value="This Month">This Month</MenuItem>
             <MenuItem value="Last Month">Last Month</MenuItem>
             <MenuItem value="This Year">This Year</MenuItem>
           </Select>
         </Grid>
         <Grid item xs={12} md={3}>
-          <Button
-            variant="outlined"
-            startIcon={<FilterListIcon />}
-            fullWidth
-            sx={{ height: 40 }}
-          >
-            Filters
-          </Button>
+          <Badge badgeContent={selectedCategories.length} color="primary">
+            <Button
+              variant = "outlined"
+              startIcon = {<FilterListIcon />}
+              fullWidth
+              sx = {{ height: 40 }}
+              onClick={(e) => setFilterAnchor(e.currentTarget)}
+            >
+              Filter By Category
+            </Button>
+          </Badge>
+          <Menu anchorEl={filterAnchor} open={Boolean(filterAnchor)} onClose={() => setFilterAnchor(null)}>
+            {CATEGORIES.map(cat => (
+              <MenuItem key={cat} onClick={() => setSelectedCategories(prev =>
+                prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+              )}>
+                <Checkbox checked={selectedCategories.includes(cat)} size="small" />
+                <ListItemText primary = {cat} />
+              </MenuItem>
+            ))}
+            <MenuItem onClick={() => setSelectedCategories([])}>
+              <Typography variant = "body2" color = "error"> Clear All </Typography>
+            </MenuItem>
+          </Menu>
         </Grid>
       </Grid>
 
-      {/* KPI CARDS */}
+      {/* KPI CARDS + TABLE */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <Card variant="outlined" sx={{ borderRadius: 3 }}>
@@ -347,9 +208,7 @@ export default function Transactions() {
                 <ArrowUpwardIcon color="success" />
                 <Typography>Total Income</Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>
-                {currency(totalIncome)}
-              </Typography>
+              <Typography variant="h5" fontWeight={800}>{currency(totalIncome)}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -361,9 +220,7 @@ export default function Transactions() {
                 <ArrowDownwardIcon color="error" />
                 <Typography>Total Expenses</Typography>
               </Stack>
-              <Typography variant="h5" fontWeight={800}>
-                {currency(totalExpenses)}
-              </Typography>
+              <Typography variant="h5" fontWeight={800}>{currency(totalExpenses)}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -372,270 +229,68 @@ export default function Transactions() {
           <Card variant="outlined" sx={{ borderRadius: 3 }}>
             <CardContent>
               <Typography fontWeight={800}>Net Amount</Typography>
-              <Typography
-                variant="h5"
-                fontWeight={800}
-                color={netAmount >= 0 ? "success.main" : "error.main"}
-              >
+              <Typography variant="h5" fontWeight={800} color={netAmount >= 0 ? "success.main" : "error.main"}>
                 {currency(netAmount)}
               </Typography>
             </CardContent>
           </Card>
         </Grid>
+
+        <Grid item xs={12}>
+          <TransactionTable
+            transactions={filteredTransactions}
+            onDelete={handleDelete}
+            onBulkDelete={handleBulkDelete}
+            onOpenAdd={() => setOpenModal(true)}
+            onOpenImport={() => setOpenImportModal(true)}
+            onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
+            onPlaidImported={(summary) => {
+              fetchTransactions();
+              const total = summary.added + summary.modified;
+              setPlaidSnackbar(
+                total === 0
+                  ? "Bank connected. No new transactions found."
+                  : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`
+              );
+            }}
+          />
+        </Grid>
       </Grid>
 
-      {/* TABLE */}
-      <Card variant="outlined">
-        <CardContent>
-          <Stack direction="row" justifyContent="space-between" mb={2}>
-            <Typography variant="h6">All Transactions</Typography>
-            <Stack direction="row" spacing={2}>
-              <TextField
-                size="small"
-                placeholder="Search transactions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <Button variant="contained" startIcon={<FileDownloadIcon />}>
-                Export
-              </Button>
-              <Button variant="contained" onClick={() => setOpenModal(true)}>
-                + Add Transaction(s)
-              </Button>
-              <Button 
-              variant="contained"
-              color = {selectionMode ? "secondary" : "primary"}
-              onClick = {() => {
-                setSelectionMode(prev => !prev);
-                selection.clear();
-              }}
-              >
-                {selectionMode ? "Done Selecting" : "Select Transactions"}
-              </Button>
+      {/* MODALS */}
+      <AddTransactionModal
+        open={openModal}
+        onClose={() => { setOpenModal(false); setEditTx(null); }} 
+        onTransactionAdded={() => {
+          fetchTransactions();
+          if (editTx) setEditSnackbar(true);
+          else setSnackbarOpen(true);
+        }}
+        editTransaction={editTx}
+      />
 
-              {selectionMode && selection.count > 0 && (
-                <Button
-                  variant="contained"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleBulkDelete}
-                >
-                  Delete ({selection.count})
-                </Button>
-              )}
-            </Stack>
-          </Stack>
+      <ImportCSVModal
+        open={openImportModal}
+        onClose={() => setOpenImportModal(false)}
+        onImportComplete={() => {
+          fetchTransactions();
+          setSnackbarOpen(true);
+        }}
+      />
 
-          <Divider sx={{ mb: 2 }} />
-
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                {selectionMode && (
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      indeterminate={
-                        selection.count > 0 &&
-                        selection.count < filteredTx.length
-                      }
-                      checked = {
-                        filteredTx.length > 0 &&
-                        selection.count === filteredTx.length
-                      }
-                      onChange={() =>
-                        selection.toggleMany(filteredTx.map(t => t.id))
-                      }
-                    />
-                  </TableCell>
-                )}
-                {["Transaction", "Category", "Account", "Date", "Status", "Amount", "Delete"]
-                  .map(header => (
-                    <TableCell key={header}>{header}</TableCell>
-                  ))}
-              </TableRow>
-            </TableHead>
-
-            <TableBody>
-              {filteredTx.map((t) => (
-                <TableRow key={t.id} hover>
-
-                  {selectionMode && (
-                    <TableCell padding="checkbox">
-                      <Checkbox
-                        checked={selection.selected.has(t.id)}
-                        onChange={() => selection.toggleOne(t.id)}
-                      />
-                    </TableCell>
-                  )}
-
-                  <TableCell>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      {t.type === "income" ? (
-                        <ArrowUpwardIcon color="success" fontSize="small" />
-                      ) : (
-                        <ArrowDownwardIcon color="error" fontSize="small" />
-                      )}
-                      <Typography fontWeight={600}>{t.name}</Typography>
-                    </Stack>
-                  </TableCell>
-
-                  <TableCell>{t.category}</TableCell>
-                  <TableCell>{t.account}</TableCell>
-                  <TableCell>{t.date}</TableCell>
-
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={t.status}
-                      color={
-                        t.status === "completed"
-                          ? "success"
-                          : t.status === "pending"
-                          ? "warning"
-                          : "default"
-                      }
-                      icon={
-                        t.status === "completed" ? (
-                          <CheckCircleIcon fontSize="small" />
-                        ) : (
-                          <PendingIcon fontSize="small" />
-                        )
-                      }
-                    />
-                  </TableCell>
-
-                  <TableCell
-                    align="left"
-                    sx={{
-                      color: t.amount >= 0 ? "success.main" : "error.main",
-                      fontWeight: 700,
-                    }}
-                  >
-                    {t.amount >= 0 ? "+" : "-"}
-                    {currency(Math.abs(t.amount))}
-                  </TableCell>
-
-                  <TableCell align="left">
-                    <IconButton
-                    color = "error"
-                    size = "small"
-                    disabled = {selectionMode}
-                    onClick = {() => handleDelete(t.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* ADD TRANSACTION MODAL */}
-      <Dialog open={openModal} onClose={() => setOpenModal(false)} fullWidth maxWidth="sm">
-        <DialogTitle mb = {-2}>Add New Transaction</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} mt={1}>
-            <Typography>
-              Single Transaction:
-            </Typography>
-            <TextField
-              label="Transaction Name"
-              fullWidth
-              value={newTx.name}
-              onChange={(e) => setNewTx({ ...newTx, name: e.target.value })}
-            />
-
-            <TextField
-              select
-              label="Category"
-              fullWidth
-              value={newTx.category}
-              onChange={(e) => setNewTx({ ...newTx, category: e.target.value })}
-            >
-              <MenuItem value="Food">Food</MenuItem>
-              <MenuItem value="Paycheck">Paycheck</MenuItem>
-              <MenuItem value="Bills">Bills</MenuItem>
-              <MenuItem value="Shopping">Shopping</MenuItem>
-              <MenuItem value="Vacation">Vacation</MenuItem>
-              <MenuItem value="Transport">Transport</MenuItem>
-              <MenuItem value="Entertainment">Entertainment</MenuItem>
-              <MenuItem value="Health">Health</MenuItem>
-              <MenuItem value="Other">Other</MenuItem>
-            </TextField>
-
-            <TextField
-              label="Date"
-              type="date"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              value={newTx.date}
-              onChange={(e) => setNewTx({ ...newTx, date: e.target.value })}
-            />
-
-            <TextField
-              label="Amount (USD)"
-              type="number"
-              fullWidth
-              value={newTx.amount}
-              onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
-            />
-
-            <Select
-              fullWidth
-              value={newTx.type}
-              onChange={(e) => setNewTx({ ...newTx, type: e.target.value })}
-            >
-              <MenuItem value="income">Income</MenuItem>
-              <MenuItem value="expense">Expense</MenuItem>
-            </Select>
-
-            <Select
-              fullWidth
-              value={newTx.status}
-              onChange={(e) => setNewTx({ ...newTx, status: e.target.value })}
-            >
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="completed">Completed</MenuItem>
-            </Select>
-            <Typography>
-              Multiple Transactions:
-            </Typography>
-            <Button variant="contained">
-              Upload File
-            </Button>
-          </Stack>
-        </DialogContent>
-
-        <DialogActions>
-          <Button onClick={() => setOpenModal(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAddTransaction}>
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* SNACKBAR */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarOpen(false)}
-      >
-        <Alert severity="success" variant="filled">
-          Transaction added!
-        </Alert>
+      {/* SNACKBARS */}
+      <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)}>
+        <Alert severity="success" variant="filled">Transaction added!</Alert>
       </Snackbar>
 
-      {/* SNACKBAR – Delete Transaction */}
-      <Snackbar
-        open={deleteSnackbar}
-        autoHideDuration={3000}
-        onClose={() => setDeleteSnackbar(false)}
-      >
-        <Alert severity="success" variant="filled">
-          Transaction deleted!
-        </Alert>
+      <Snackbar open={deleteSnackbar} autoHideDuration={3000} onClose={() => setDeleteSnackbar(false)}>
+        <Alert severity="success" variant="filled">Transaction deleted!</Alert>
+      </Snackbar>
+      <Snackbar open={editSnackbar} autoHideDuration={3000} onClose={() => setEditSnackbar(false)}>
+        <Alert severity="success" variant="filled">Transaction updated!</Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(plaidSnackbar)} autoHideDuration={4000} onClose={() => setPlaidSnackbar(null)}>
+        <Alert severity="success" variant="filled">{plaidSnackbar}</Alert>
       </Snackbar>
     </Stack>
   );

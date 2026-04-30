@@ -28,16 +28,6 @@ import com.casa.backend.user.UserRepository;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    /**
-     * Responsible for configuring the main security filter chain for the backend.
-     * This involves disabling CSRF, as we're using a separate frontend, enabling CORS, and 
-     * allowing unauthenticated access to authentication routes while simultaneously protecting everything
-     * else.
-     * 
-     * @param http This is the HttpSecurity object that is used to define security rules.
-     * @return The SecurityFilterChain with its defined settings.
-     * @throws Exception If the filter is unable to be created.
-     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -45,8 +35,9 @@ public class SecurityConfig {
             .cors(cors -> {})   // CORS by CorsConfig
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/goals/**").authenticated()     
+                .requestMatchers("/api/goals/**").authenticated()
                 .requestMatchers("/api/transactions/**").authenticated()
+                .requestMatchers("/api/plaid/**").authenticated()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
@@ -57,7 +48,7 @@ public class SecurityConfig {
             );
         return http.build();
     }
-    
+
     @Bean
     public UserDetailsService userDetailsService(UserRepository users) {
         return email -> users.findByEmail(email)
@@ -69,24 +60,11 @@ public class SecurityConfig {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
-    /**
-     * Provides the PasswordEncoder which is used to hash user passwords.
-     * BCrypt is used, which is a standard encoder for hashing passwords.
-     * 
-     * @return A BCryptPasswordEncoder instance.
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    /**
-     * Provides the AuthenticationManager bean needed for manual authentication.
-     * 
-     * @param config The AuthenticationConfiguration
-     * @return AuthenticationManager instance
-     * @throws Exception if unable to get the authentication manager
-     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();

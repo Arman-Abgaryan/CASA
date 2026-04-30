@@ -1,26 +1,20 @@
-import {Box, Paper, Divider, List, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Drawer} from "@mui/material";
+import {Box, Divider, List, ListItemButton, ListItemIcon, ListItemText, Toolbar, Typography, Drawer} from "@mui/material";
 
 /* Import for icons */
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import FlagIcon from "@mui/icons-material/Flag";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
-import BarChartIcon from "@mui/icons-material/BarChart";
 import SettingsIcon from "@mui/icons-material/Settings";
-import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import { NavLink, useLocation } from "react-router-dom";
+import AIChatWidget from "./AIChatWidget";
 
 const items = [
   { to: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
   { to: "/budgets", label: "Budgets", icon: <AccountBalanceWalletIcon /> },
   { to: "/goals", label: "Goals", icon: <FlagIcon /> },
   { to: "/transactions", label: "Transactions", icon: <ReceiptLongIcon /> },
-];
-
-const secondary = [
   { to: "/settings", label: "Settings", icon: <SettingsIcon /> },
-  { to: "/help", label: "Help", icon: <HelpOutlineIcon /> },
 ];
 
 export default function Sidebar() {
@@ -74,7 +68,7 @@ export default function Sidebar() {
     >
       <Toolbar sx={{ minHeight: 64 }}>
         <Typography variant="h6" fontWeight={700}
-        sx = {{
+        sx={{
           color: "white",
           fontFamily: "'Raleway', sans-serif",
           fontSize: "25px",
@@ -83,10 +77,13 @@ export default function Sidebar() {
           CASA
         </Typography>
       </Toolbar>
-        {renderList(items as any)}
-        <Divider sx={{ my: 1.5 }} />
-
-        {renderList(secondary as any)}
-      </Drawer>
+      
+      {renderList(items as any)}
+      <Divider sx={{ my: -0.6 }} />
+      
+      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, px: 1, pb: 2, pt: 2 }}>
+        <AIChatWidget />
+      </Box>
+    </Drawer>
   );
 }
