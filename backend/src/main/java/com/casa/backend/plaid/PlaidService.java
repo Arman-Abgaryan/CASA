@@ -99,6 +99,24 @@ public class PlaidService {
      * Returns a summary of how many were added/modified/removed across all Items.
      */
     @Transactional
+
+    @Transactional
+    public void removeItem(User user, Long itemId) throws IOException {
+        PlaidItem item = plaidItemRepository.findByIdAndUser(itemId, user)
+                .orElseThrow(() -> new RuntimeException("Linked bank not found"));
+
+        ItemRemoveRequest request = new ItemRemoveRequest()
+                .accessToken(item.getAccessToken());
+
+        Response<ItemRemoveResponse> response = plaidApi.itemRemove(request).execute();
+        if (!response.isSuccessful()) {
+            throw new RuntimeException("Failed to remove Plaid item: " +
+                    (response.errorBody() != null ? response.errorBody().string() : response.message()));
+        }
+
+        plaidItemRepository.delete(item);
+    }
+
     public Map<String, Object> syncAllItems(User user) throws IOException {
         List<PlaidItem> items = plaidItemRepository.findAllByUser(user);
 
