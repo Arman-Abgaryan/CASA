@@ -62,6 +62,13 @@
      <version>2.3.2</version>
    </dependency>
 
+   <!-- Plaid Java SDK for bank account linking and transaction sync -->
+   <dependency>
+     <groupId>com.plaid</groupId>
+     <artifactId>plaid-java</artifactId>
+     <version>26.0.0</version>
+   </dependency>
+
    <!-- Lombok -->
    <dependency>
      <groupId>org.projectlombok</groupId>
