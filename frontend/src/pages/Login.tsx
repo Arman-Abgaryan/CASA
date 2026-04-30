@@ -89,6 +89,19 @@ export default function Login() {
               Login
             </Button>
 
+            <Typography
+              variant="body2"
+              sx={{ textAlign: "center", cursor: "pointer", color: "#1976d2" }}
+              onClick={() => (window.location.href = "/forgot-password")}
+            >
+              Forgot password?
+            </Typography>
+
+            <Typography variant="body2" sx={{ mt: 2, textAlign: "center", cursor: "pointer" }} onClick={() => (window.location.href = "/signup")}>
+              Don’t have an account? <span style={{ color: "#1976d2" }}>Sign up</span>
+            </Typography>
+          </Stack>
+
             <Typography variant="body2" sx={{ mt: 2, textAlign: "center", cursor: "pointer" }} onClick={() => (window.location.href = "/signup")}>
               Don’t have an account? <span style={{ color: "#1976d2" }}>Sign up</span>
             </Typography>
