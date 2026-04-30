@@ -26,7 +26,8 @@ import { useState } from "react";
 import { CheckboxSelection } from "../CheckboxSelection";
 import EditIcon from "@mui/icons-material/Edit";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
-import { Menu, MenuItem } from "@mui/material"; 
+import { Menu, MenuItem } from "@mui/material";
+import PlaidLinkButton from "./PlaidLinkButton";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -52,6 +53,7 @@ interface Props {
   onOpenAdd: () => void;
   onOpenImport: () => void;
   onEdit: (tx: Transaction) => void;
+  onPlaidImported?: (summary: { added: number; modified: number; removed: number }) => void;
 }
 
 export default function TransactionTable({
@@ -61,6 +63,7 @@ export default function TransactionTable({
   onOpenAdd,
   onOpenImport,
   onEdit,
+  onPlaidImported,
 }: Props) {
   const [search, setSearch] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
@@ -79,22 +82,22 @@ export default function TransactionTable({
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-const [menuTxId, setMenuTxId] = useState<number | null>(null);
+  const [menuTxId, setMenuTxId] = useState<number | null>(null);
 
-const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, id: number) => {
-  setMenuAnchor(e.currentTarget);
-  setMenuTxId(id);
-};
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, id: number) => {
+    setMenuAnchor(e.currentTarget);
+    setMenuTxId(id);
+  };
 
-const handleMenuClose = () => {
-  setMenuAnchor(null);
-  setMenuTxId(null);
-};
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+    setMenuTxId(null);
+  };
 
-const handleMenuDelete = () => {
-  if (menuTxId !== null) onDelete(menuTxId);
-  handleMenuClose();
-};
+  const handleMenuDelete = () => {
+    if (menuTxId !== null) onDelete(menuTxId);
+    handleMenuClose();
+  };
 
   return (
     <Card variant="outlined">
@@ -118,6 +121,7 @@ const handleMenuDelete = () => {
             >
               Import CSV
             </Button>
+            <PlaidLinkButton onImported={onPlaidImported} />
             <Button variant="contained" startIcon={<FileDownloadIcon />}>
               Export
             </Button>
@@ -227,22 +231,22 @@ const handleMenuDelete = () => {
                   {t.amount >= 0 ? "+" : "-"}
                   {currency(Math.abs(t.amount))}
                 </TableCell>
-                  <TableCell align="left">
-                    <IconButton
-                      size="small"
-                      disabled={selectionMode}
-                      onClick={(e) => handleMenuOpen(e, t.id)}
-                      sx={{ color: "grey.500" }}
-                    >
-                      <MoreHorizIcon />
-                    </IconButton>
-                  </TableCell>
+                <TableCell align="left">
+                  <IconButton
+                    size="small"
+                    disabled={selectionMode}
+                    onClick={(e) => handleMenuOpen(e, t.id)}
+                    sx={{ color: "grey.500" }}
+                  >
+                    <MoreHorizIcon />
+                  </IconButton>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
         <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={handleMenuClose}>
-          <MenuItem onClick={() => {onEdit(filteredTx.find(t => t.id === menuTxId)!); handleMenuClose(); }}>
+          <MenuItem onClick={() => { onEdit(filteredTx.find(t => t.id === menuTxId)!); handleMenuClose(); }}>
             <EditIcon fontSize="small" sx={{ mr: 1 }} /> Edit
           </MenuItem>
           <MenuItem onClick={handleMenuDelete} sx={{ color: "error.main" }}>
