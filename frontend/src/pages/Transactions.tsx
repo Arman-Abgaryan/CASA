@@ -43,7 +43,10 @@ export default function Transactions() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
   const [editSnackbar, setEditSnackbar] = useState(false);
-  const [plaidSnackbar, setPlaidSnackbar] = useState<string | null>(null);
+  const [plaidSnackbar, setPlaidSnackbar] = useState<{
+    message: string;
+    severity: "success" | "info";
+  } | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -246,12 +249,22 @@ export default function Transactions() {
             onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
             onPlaidImported={(summary) => {
               fetchTransactions();
+              // No bank linked yet (only possible from the Refresh button)
+              if (summary.itemsSynced === 0) {
+                setPlaidSnackbar({
+                  message: "No bank connected yet — click Connect Bank first.",
+                  severity: "info",
+                });
+                return;
+              }
               const total = summary.added + summary.modified;
-              setPlaidSnackbar(
-                total === 0
-                  ? "Bank connected. No new transactions found."
-                  : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`
-              );
+              setPlaidSnackbar({
+                message:
+                  total === 0
+                    ? "Already up to date — no new transactions."
+                    : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`,
+                severity: total === 0 ? "info" : "success",
+              });
             }}
           />
         </Grid>
@@ -289,8 +302,14 @@ export default function Transactions() {
       <Snackbar open={editSnackbar} autoHideDuration={3000} onClose={() => setEditSnackbar(false)}>
         <Alert severity="success" variant="filled">Transaction updated!</Alert>
       </Snackbar>
-      <Snackbar open={Boolean(plaidSnackbar)} autoHideDuration={4000} onClose={() => setPlaidSnackbar(null)}>
-        <Alert severity="success" variant="filled">{plaidSnackbar}</Alert>
+      <Snackbar
+        open={Boolean(plaidSnackbar)}
+        autoHideDuration={4000}
+        onClose={() => setPlaidSnackbar(null)}
+      >
+        <Alert severity={plaidSnackbar?.severity ?? "success"} variant="filled">
+          {plaidSnackbar?.message}
+        </Alert>
       </Snackbar>
     </Stack>
   );
