@@ -1,7 +1,11 @@
 import axios from "axios";
 
+// Centralized backend URL.
+export const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
 const api = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: API_BASE,
   withCredentials: true,
 });
 
