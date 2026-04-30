@@ -9,84 +9,62 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Service class for managing transaction business logic.
  * Handles saving, retrieving, deleting, and importing transactions from CSV
  * files.
- * CSV date parsing supports multiple formats using a sequential formatter list.
+ *
+ * CSV import is delegated to {@link GeminiCsvParserService}. The Gemini parser
+ * normalizes the rows and detects the issuing bank, so this service only has
+ * to coerce a few primitive types and persist the rows.
  */
 @Service
 @RequiredArgsConstructor
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
+    private final GeminiCsvParserService geminiCsvParserService;
 
     /**
-     * List of supported date formats for CSV parsing.
-     * Each formatter is tried in order until one succeeds.
-     * Supports: yyyy-MM-dd, MM/dd/yyyy, MM-dd-yyyy, M/d/yyyy.
+     * Date formats accepted from Gemini's output. Gemini is asked to return
+     * ISO format, but we keep a couple of fallbacks in case it deviates.
      */
-    private static final List<DateTimeFormatter> CSV_FORMATTERS = List.of(
+    private static final List<DateTimeFormatter> DATE_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy-MM-dd"),
             DateTimeFormatter.ofPattern("MM/dd/yyyy"),
             DateTimeFormatter.ofPattern("MM-dd-yyyy"),
             DateTimeFormatter.ofPattern("M/d/yyyy"));
 
-    /**
-     * Saves a single transaction to the database.
-     *
-     * @param transaction The transaction object to save.
-     * @return The saved Transaction with its generated ID.
-     */
     public Transaction saveTransaction(Transaction transaction) {
+        // Default the bank label for manually-added rows.
+        if (transaction.getBankName() == null || transaction.getBankName().isBlank()) {
+            transaction.setBankName("Manual");
+        }
         return transactionRepository.save(transaction);
     }
 
-    /**
-     * Retrieves a transaction by its ID.
-     *
-     * @param id The ID of the transaction to retrieve.
-     * @return The Transaction if found, or null if not found.
-     */
     public Transaction getTransactionById(Long id) {
         return transactionRepository.findById(id).orElse(null);
     }
 
-    /**
-     * Deletes a transaction by its ID.
-     *
-     * @param id The ID of the transaction to delete.
-     */
     public void deleteTransaction(Long id) {
         transactionRepository.deleteById(id);
     }
 
-    /**
-     * Deletes multiple transactions by their IDs for a specific user.
-     *
-     * @param ids  The list of transaction IDs to delete.
-     * @param user The user who owns the transactions.
-     */
     @Transactional
     public void deleteTransactionsBulk(List<Long> ids, User user) {
         transactionRepository.deleteAllByIdInAndUser(ids, user);
     }
 
-    /**
-     * Updates an existing transaction by ID.
-     *
-     * @param id The ID of the transaction to update.
-     * @param updated The updated transaction data.
-     * @param user The authenticated user.
-     * @return The updated Transaction, or null if not found or unauthorized.
-     */
     public Transaction updateTransaction(Long id, Transaction updated, User user) {
         Transaction existing = transactionRepository.findById(id).orElse(null);
         if (existing == null || !existing.getUser().getId().equals(user.getId())) {
@@ -96,197 +74,126 @@ public class TransactionService {
         existing.setCategory(updated.getCategory());
         existing.setDate(updated.getDate());
         existing.setAmount(updated.getAmount());
+        // bankName is intentionally NOT updated here. The user does not edit it
+        // directly and we want the original import source to stay authoritative.
         return transactionRepository.save(existing);
     }
 
-    /**
-     * Retrieves all transactions belonging to a specific user.
-     *
-     * @param user The authenticated user.
-     * @return A list of transactions belonging to the user.
-     */
     public List<Transaction> getTransactionsForUser(User user) {
         return transactionRepository.findAllByUser(user);
     }
 
     /**
-     * Parses a CSV file and returns a preview without saving to the database.
-     * Automatically detects and skips header rows containing "date".
-     *
-     * @param file The uploaded CSV file.
-     * @return A map containing "preview" (list of parsed rows) and "errors" (list
-     *         of error messages).
+     * Parses a CSV file via Gemini and returns a preview without persisting.
      */
     public Map<String, Object> previewCSV(MultipartFile file) {
-        List<Map<String, String>> preview = new ArrayList<>();
-        List<String> errors = new ArrayList<>();
-
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            String line = br.readLine();
-            boolean hasHeader = line != null && line.toLowerCase().contains("date");
-
-            if (!hasHeader && line != null) {
-                parseCsvLine(line, preview, errors);
-            }
-
-            while ((line = br.readLine()) != null) {
-                parseCsvLine(line, preview, errors);
-            }
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error processing CSV: " + e.getMessage(), e);
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("preview", preview);
-        result.put("errors", errors);
-        return result;
+        return processCsv(file, null, false);
     }
 
     /**
-     * Parses a CSV file and saves all valid transactions to the database.
-     * Skips duplicate transactions based on date, description, amount, category,
-     * and user.
-     *
-     * @param file The uploaded CSV file.
-     * @param user The authenticated user to associate with the transactions.
-     * @return A map containing "preview" (list of saved rows) and "errors" (list of
-     *         error messages).
+     * Parses a CSV file via Gemini and persists the new transactions for the user.
+     * Skips duplicates by (date, description, amount, category, bankName, user).
      */
     public Map<String, Object> importCSV(MultipartFile file, User user) {
+        return processCsv(file, user, true);
+    }
+
+    /**
+     * Shared path for preview + confirm. When {@code persist} is true and a
+     * user is given, valid rows are saved (skipping duplicates).
+     *
+     * The returned map mirrors the previous contract, plus a new "bankName" key:
+     *   - "preview" : List&lt;Map&lt;String, String&gt;&gt; - one map per row
+     *   - "errors"  : List&lt;String&gt; - any per-row coercion errors
+     *   - "bankName": String - bank detected by Gemini
+     */
+    private Map<String, Object> processCsv(MultipartFile file, User user, boolean persist) {
+        String csvContent = readFile(file);
+        GeminiCsvParserService.ParsedCsv parsed = geminiCsvParserService.parse(csvContent);
+
+        String bankName = parsed.bankName() != null && !parsed.bankName().isBlank()
+                ? parsed.bankName()
+                : "Unknown";
+
         List<Map<String, String>> preview = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            String line = br.readLine();
-            boolean hasHeader = line != null && line.toLowerCase().contains("date");
-
-            if (!hasHeader && line != null) {
-                saveCsvLine(line, user, preview, errors);
+        for (GeminiCsvParserService.ParsedRow row : parsed.rows()) {
+            LocalDate date = tryParseDate(row.date());
+            if (date == null) {
+                errors.add("Invalid date: " + row.date());
+                continue;
+            }
+            BigDecimal amount;
+            try {
+                amount = new BigDecimal(row.amount().replace(",", "").trim());
+            } catch (Exception e) {
+                errors.add("Invalid amount: " + row.amount());
+                continue;
             }
 
-            while ((line = br.readLine()) != null) {
-                saveCsvLine(line, user, preview, errors);
-            }
+            String description = row.description() == null ? "" : row.description().trim();
+            String category = row.category() == null || row.category().isBlank()
+                    ? "Other"
+                    : row.category().trim();
 
-        } catch (Exception e) {
-            throw new RuntimeException("Error processing CSV: " + e.getMessage(), e);
+            Map<String, String> previewRow = new HashMap<>();
+            previewRow.put("date", date.toString());
+            previewRow.put("description", description);
+            previewRow.put("amount", amount.toString());
+            previewRow.put("category", category);
+            previewRow.put("bankName", bankName);
+            preview.add(previewRow);
+
+            if (persist && user != null) {
+                Transaction existing = transactionRepository
+                        .findByDateAndDescriptionAndAmountAndCategoryAndBankNameAndUser(
+                                date, description, amount, category, bankName, user);
+                if (existing == null) {
+                    Transaction tx = Transaction.builder()
+                            .user(user)
+                            .date(date)
+                            .description(description)
+                            .category(category)
+                            .amount(amount)
+                            .bankName(bankName)
+                            .build();
+                    transactionRepository.save(tx);
+                }
+            }
         }
 
         Map<String, Object> result = new HashMap<>();
         result.put("preview", preview);
         result.put("errors", errors);
+        result.put("bankName", bankName);
         return result;
     }
 
     /**
-     * Parses a single CSV line and adds it to the preview list without saving.
-     * Tries each supported date formatter in order until one succeeds.
-     *
-     * @param line    The raw CSV line to parse.
-     * @param preview The list to add the parsed row to.
-     * @param errors  The list to add any parsing error messages to.
+     * Reads the entire uploaded file into a single UTF-8 string. Bank CSVs are
+     * tiny by LLM standards (typically a few KB to a few hundred KB), so
+     * loading the whole file into memory is fine.
      */
-    private void parseCsvLine(String line, List<Map<String, String>> preview, List<String> errors) {
-        String[] fields = line.split(",", -1);
-
-        if (fields.length < 4) {
-            errors.add("Invalid line: " + line);
-            return;
-        }
-
-        LocalDate date = null;
-        for (DateTimeFormatter formatter : CSV_FORMATTERS) {
-            try {
-                date = LocalDate.parse(fields[0].trim(), formatter);
-                break;
-            } catch (Exception ignored) {
-            }
-        }
-        if (date == null) {
-            errors.add("Invalid date: " + fields[0]);
-            return;
-        }
-
-        String description = fields[1].trim();
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(fields[2].trim());
+    private String readFile(MultipartFile file) {
+        try (BufferedReader br = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            return br.lines().collect(Collectors.joining("\n"));
         } catch (Exception e) {
-            errors.add("Invalid amount: " + fields[2]);
-            return;
+            throw new RuntimeException("Error processing CSV: " + e.getMessage(), e);
         }
-
-        String category = fields[3].trim();
-
-        Map<String, String> row = new HashMap<>();
-        row.put("date", date.toString());
-        row.put("description", description);
-        row.put("amount", amount.toString());
-        row.put("category", category);
-        preview.add(row);
     }
 
-    /**
-     * Parses a single CSV line, adds it to the preview list, and saves it to the
-     * database.
-     * Skips saving if a duplicate transaction already exists for the user.
-     *
-     * @param line    The raw CSV line to parse.
-     * @param user    The authenticated user to associate with the transaction.
-     * @param preview The list to add the parsed row to.
-     * @param errors  The list to add any parsing error messages to.
-     */
-    private void saveCsvLine(String line, User user, List<Map<String, String>> preview, List<String> errors) {
-        String[] fields = line.split(",", -1);
-
-        if (fields.length < 4) {
-            errors.add("Invalid line: " + line);
-            return;
-        }
-
-        LocalDate date = null;
-        for (DateTimeFormatter formatter : CSV_FORMATTERS) {
+    private LocalDate tryParseDate(String raw) {
+        if (raw == null) return null;
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) return null;
+        for (DateTimeFormatter f : DATE_FORMATTERS) {
             try {
-                date = LocalDate.parse(fields[0].trim(), formatter);
-                break;
+                return LocalDate.parse(trimmed, f);
             } catch (Exception ignored) {
             }
         }
-        if (date == null) {
-            errors.add("Invalid date: " + fields[0]);
-            return;
-        }
-
-        String description = fields[1].trim();
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(fields[2].trim());
-        } catch (Exception e) {
-            errors.add("Invalid amount: " + fields[2]);
-            return;
-        }
-
-        String category = fields[3].trim();
-
-        Map<String, String> row = new HashMap<>();
-        row.put("date", date.toString());
-        row.put("description", description);
-        row.put("amount", amount.toString());
-        row.put("category", category);
-        preview.add(row);
-
-        Transaction existingTx = transactionRepository.findByDateAndDescriptionAndAmountAndCategoryAndUser(date,
-                description, amount, category, user);
-        if (existingTx == null) {
-            Transaction t = Transaction.builder()
-                    .user(user)
-                    .date(date)
-                    .description(description)
-                    .category(category)
-                    .amount(amount)
-                    .build();
-            transactionRepository.save(t);
-        }
+        return null;
     }
 }

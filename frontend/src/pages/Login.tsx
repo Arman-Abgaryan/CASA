@@ -102,11 +102,6 @@ export default function Login() {
             </Typography>
           </Stack>
 
-            <Typography variant="body2" sx={{ mt: 2, textAlign: "center", cursor: "pointer" }} onClick={() => (window.location.href = "/signup")}>
-              Don’t have an account? <span style={{ color: "#1976d2" }}>Sign up</span>
-            </Typography>
-          </Stack>
-
           <Typography mt={2} textAlign="center" sx={{ color: message.includes("Success") ? "green" : "red" }}>
             {message}
           </Typography>

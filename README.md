@@ -39,4 +39,40 @@ Whether you’re splitting rent, saving for your next trip, or just trying to ma
    npm run dev
    ```
 
+---
+
+## 🤖 Gemini-powered CSV Import
+
+CSV imports go through Google Gemini, which automatically detects the issuing bank (Chase, Citibank, Bank of America, etc.) and categorizes each row.
+
+To enable CSV import you need a free Gemini API key:
+
+1. Go to [aistudio.google.com](https://aistudio.google.com/apikey) and sign in with a Google account.
+2. Click **Create API key** — no credit card required.
+3. Add it to your backend `.env`:
+
+   ```bash
+   GEMINI_API_KEY=your_key_here
+   # Optional — defaults to gemini-2.5-flash
+   GEMINI_MODEL=gemini-2.5-flash
+   ```
+
+The free tier (`gemini-2.5-flash`) gives you 10 requests/minute and 250 requests/day, which is plenty for personal use. Each CSV import is a single request regardless of how many rows it contains.
+
+---
+
+## 🏦 Bank labels on transactions
+
+Every transaction now carries a `bankName`:
+
+- **Plaid-linked transactions** are labeled with the institution name returned by Plaid (e.g. "Chase").
+- **CSV-imported transactions** are labeled with the bank Gemini detected from the file format.
+- **Manually-added transactions** are labeled `"Manual"`.
+
+If you're upgrading an existing database, the `bank_name` column will be added automatically by Hibernate (`ddl-auto=update`) but old rows will be `NULL`. The frontend renders `NULL` as `"Manual"`, but for cleanliness you can run:
+
+```sql
+UPDATE transactions SET bank_name = 'Manual' WHERE bank_name IS NULL;
+```
+
 

@@ -57,4 +57,14 @@ public class Transaction {
      */
     @Column(name = "plaid_transaction_id", length = 100)
     private String plaidTransactionId;
+
+    /**
+     * Source of the transaction:
+     *  - For Plaid-imported rows: the institution name (e.g. "Chase", "Bank of America").
+     *  - For CSV-imported rows: the bank name detected by the Gemini CSV parser.
+     *  - For manually-added rows: the string "Manual".
+     * Replaces the old "status" concept on the frontend.
+     */
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
 }
