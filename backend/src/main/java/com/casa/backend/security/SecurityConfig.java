@@ -1,54 +1,72 @@
-package com.casa.backend.transaction;
+package com.casa.backend.security;
 
-import java.time.LocalDate;
-import java.math.BigDecimal;
-import com.casa.backend.user.User;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
-import java.util.List;
+import com.casa.backend.user.UserRepository;
 
 /**
- * Repository interface for performing CRUD operations on transactions.
- * Spring Data JPA automatically implements all basic operations.
+ * Establishes the Spring Security configurations for the backend.
+ * This class is responsible for controlling which routes require authentication,
+ * disables CSRF for development reasons, and enables CORS so the frontend
+ * can successfully communicate and work with the backend.
  */
-@Repository
-public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+public class SecurityConfig {
 
-    /**
-     * Retrieves all transaction that belong to a specific user.
-     */
-    List<Transaction> findAllByUser(User user);
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> {})   // CORS by CorsConfig
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/goals/**").authenticated()
+                .requestMatchers("/api/transactions/**").authenticated()
+                .requestMatchers("/api/plaid/**").authenticated()
+                .anyRequest().authenticated()
+            )
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+            )
+            .securityContext(context -> context
+                .securityContextRepository(new HttpSessionSecurityContextRepository())
+            );
+        return http.build();
+    }
 
-    /**
-     * Deletes all transactions whose IDs are in the provided list and belong to the
-     * specified user. Used for bulk delete operations.
-     */
-    @Modifying
-    @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
-    void deleteAllByIdInAndUser(@Param("ids") List<Long> ids, @Param("user") User user);
+    @Bean
+    public UserDetailsService userDetailsService(UserRepository users) {
+        return email -> users.findByEmail(email)
+                .map(user -> org.springframework.security.core.userdetails.User
+                        .withUsername(user.getEmail())
+                        .password(user.getPasswordHash())
+                        .authorities("USER")
+                        .build())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+    }
 
-    /**
-     * Finds a transaction matching all provided fields for a specific user.
-     * Used for deduplication during CSV import.
-     */
-    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(
-            LocalDate date, String description, BigDecimal amount, String category, User user);
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
 
-    /**
-     * Looks up a transaction by Plaid's stable transaction ID, scoped to a user.
-     * Used during Plaid sync to skip transactions we've already imported.
-     */
-    Transaction findByPlaidTransactionIdAndUser(String plaidTransactionId, User user);
-
-    /**
-     * Deletes a transaction by Plaid transaction_id and user.
-     * Used when Plaid reports a removed transaction during sync.
-     */
-    @Modifying
-    @Query("DELETE FROM Transaction t WHERE t.plaidTransactionId = :plaidId AND t.user = :user")
-    void deleteByPlaidTransactionIdAndUser(@Param("plaidId") String plaidId, @Param("user") User user);
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
 }
