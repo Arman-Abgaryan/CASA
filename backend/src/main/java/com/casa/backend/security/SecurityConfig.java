@@ -1,101 +1,54 @@
-package com.casa.backend.security;
+package com.casa.backend.transaction;
 
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import java.time.LocalDate;
+import java.math.BigDecimal;
+import com.casa.backend.user.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
-import com.casa.backend.user.UserRepository;
+import java.util.List;
 
 /**
- * Establishes the Spring Security configurations for the backend.
- * This class is responsible for controlling which routes require authentication,
- * disables CSRF for development reasons, and enables CORS so the frontend
- * can successfully communicate and work with the backend.
+ * Repository interface for performing CRUD operations on transactions.
+ * Spring Data JPA automatically implements all basic operations.
  */
-@Configuration
-@EnableWebSecurity
-@EnableMethodSecurity
-public class SecurityConfig {
+@Repository
+public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
     /**
-     * Responsible for configuring the main security filter chain for the backend.
-     * This involves disabling CSRF, as we're using a separate frontend, enabling CORS, and 
-     * allowing unauthenticated access to authentication routes while simultaneously protecting everything
-     * else.
-     * 
-     * @param http This is the HttpSecurity object that is used to define security rules.
-     * @return The SecurityFilterChain with its defined settings.
-     * @throws Exception If the filter is unable to be created.
+     * Retrieves all transaction that belong to a specific user.
      */
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> {})   // CORS by CorsConfig
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/goals/**").authenticated()     
-                .requestMatchers("/api/transactions/**").authenticated()
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-            )
-            .securityContext(context -> context
-                .securityContextRepository(new HttpSessionSecurityContextRepository())
-            );
-        return http.build();
-    }
-    
-    /**
-     * Provides a UserDetailsService that loads users by email for Spring Security
-     * authentication.
-     *
-     * @param users The UserRepository used to look up users by email.
-     * @return A UserDetailsService implementation that retrieves user credentials from the database.
-     */
-    @Bean
-    public UserDetailsService userDetailsService(UserRepository users) {
-        return email -> users.findByEmail(email)
-                .map(user -> org.springframework.security.core.userdetails.User
-                        .withUsername(user.getEmail())
-                        .password(user.getPasswordHash())
-                        .authorities("USER")
-                        .build())
-                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-    }
+    List<Transaction> findAllByUser(User user);
 
     /**
-     * Provides the PasswordEncoder which is used to hash user passwords.
-     * BCrypt is used, which is a standard encoder for hashing passwords.
-     * 
-     * @return A BCryptPasswordEncoder instance.
+     * Deletes all transactions whose IDs are in the provided list and belong to the
+     * specified user. Used for bulk delete operations.
      */
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.id IN :ids AND t.user = :user")
+    void deleteAllByIdInAndUser(@Param("ids") List<Long> ids, @Param("user") User user);
 
     /**
-     * Provides the AuthenticationManager bean needed for manual authentication.
-     * 
-     * @param config The AuthenticationConfiguration
-     * @return AuthenticationManager instance
-     * @throws Exception if unable to get the authentication manager
+     * Finds a transaction matching all provided fields for a specific user.
+     * Used for deduplication during CSV import.
      */
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
+    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(
+            LocalDate date, String description, BigDecimal amount, String category, User user);
+
+    /**
+     * Looks up a transaction by Plaid's stable transaction ID, scoped to a user.
+     * Used during Plaid sync to skip transactions we've already imported.
+     */
+    Transaction findByPlaidTransactionIdAndUser(String plaidTransactionId, User user);
+
+    /**
+     * Deletes a transaction by Plaid transaction_id and user.
+     * Used when Plaid reports a removed transaction during sync.
+     */
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.plaidTransactionId = :plaidId AND t.user = :user")
+    void deleteByPlaidTransactionIdAndUser(@Param("plaidId") String plaidId, @Param("user") User user);
 }
