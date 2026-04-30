@@ -6,6 +6,7 @@ import com.casa.backend.user.User;
 import com.plaid.client.model.*;
 import com.plaid.client.request.PlaidApi;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import retrofit2.Response;
@@ -36,6 +37,9 @@ public class PlaidService {
     private final PlaidApi plaidApi;
     private final PlaidItemRepository plaidItemRepository;
     private final TransactionRepository transactionRepository;
+
+    @Value("${plaid.env:sandbox}")
+    private String plaidEnv;
 
     /**
      * Step 1: ask Plaid for a link_token. The frontend uses this to open the
@@ -99,8 +103,6 @@ public class PlaidService {
      * Returns a summary of how many were added/modified/removed across all Items.
      */
     @Transactional
-
-    @Transactional
     public void removeItem(User user, Long itemId) throws IOException {
         PlaidItem item = plaidItemRepository.findByIdAndUser(itemId, user)
                 .orElseThrow(() -> new RuntimeException("Linked bank not found"));
@@ -108,13 +110,27 @@ public class PlaidService {
         ItemRemoveRequest request = new ItemRemoveRequest()
                 .accessToken(item.getAccessToken());
 
-        Response<ItemRemoveResponse> response = plaidApi.itemRemove(request).execute();
-        if (!response.isSuccessful()) {
-            throw new RuntimeException("Failed to remove Plaid item: " +
-                    (response.errorBody() != null ? response.errorBody().string() : response.message()));
+        Response<ItemRemoveResponse> response = null;
+        try {
+            response = plaidApi.itemRemove(request).execute();
+        } catch (Exception e) {
+            if (!isSandbox()) {
+                throw e instanceof IOException ? (IOException) e : new IOException(e);
+            }
+        }
+
+        if (response != null && !response.isSuccessful()) {
+            String details = response.errorBody() != null ? response.errorBody().string() : response.message();
+            if (!isSandbox()) {
+                throw new RuntimeException("Failed to remove Plaid item: " + details);
+            }
         }
 
         plaidItemRepository.delete(item);
+    }
+
+    private boolean isSandbox() {
+        return plaidEnv != null && plaidEnv.equalsIgnoreCase("sandbox");
     }
 
     public Map<String, Object> syncAllItems(User user) throws IOException {
