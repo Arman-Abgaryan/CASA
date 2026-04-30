@@ -1,8 +1,7 @@
 import { Button, Card, CardContent, Checkbox, Chip, Divider, IconButton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Menu, MenuItem } from "@mui/material";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PendingIcon from "@mui/icons-material/AccessTime";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import DeleteIcon from "@mui/icons-material/Delete";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
@@ -18,7 +17,9 @@ interface Transaction {
   name: string;
   category: string;
   date: string;
-  status: string;
+  // Source of the transaction. For Plaid: institution name (e.g. "Chase").
+  // For CSV: bank detected by Gemini. For manual entries: "Manual".
+  bankName: string;
   amount: number;
   type: string;
 }
@@ -31,6 +32,16 @@ interface Props {
   onOpenImport: () => void;
   onEdit: (tx: Transaction) => void;
 }
+
+// Pick a chip color from the bank name. Stable across renders, no extra config.
+const bankChipColor = (name?: string) => {
+  if (!name) return "default" as const;
+  if (name === "Manual") return "default" as const;
+  const palette = ["primary", "secondary", "success", "warning", "info"] as const;
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return palette[Math.abs(hash) % palette.length];
+};
 
 export default function TransactionTable({ transactions, onDelete, onBulkDelete, onOpenAdd, onOpenImport, onEdit }: Props) {
   const [search, setSearch] = useState("");
@@ -69,7 +80,7 @@ export default function TransactionTable({ transactions, onDelete, onBulkDelete,
             <TableHead>
               <TableRow>
                 {selectionMode && <TableCell padding="checkbox"><Checkbox indeterminate={selection.count > 0 && selection.count < filteredTx.length} checked={filteredTx.length > 0 && selection.count === filteredTx.length} onChange={() => selection.toggleMany(filteredTx.map((t) => t.id))} /></TableCell>}
-                {["Transaction", "Category", "Date", "Status", "Amount", ""].map((header) => <TableCell key={header}>{header}</TableCell>)}
+                {["Transaction", "Category", "Date", "Bank", "Amount", ""].map((header) => <TableCell key={header}>{header}</TableCell>)}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -85,7 +96,13 @@ export default function TransactionTable({ transactions, onDelete, onBulkDelete,
                   <TableCell>{t.category}</TableCell>
                   <TableCell>{t.date}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={t.status} color={t.status === "completed" ? "success" : t.status === "pending" ? "warning" : "default"} icon={t.status === "completed" ? <CheckCircleIcon fontSize="small" /> : <PendingIcon fontSize="small" />} />
+                    <Chip
+                      size="small"
+                      label={t.bankName || "Unknown"}
+                      color={bankChipColor(t.bankName)}
+                      variant={t.bankName === "Manual" ? "outlined" : "filled"}
+                      icon={<AccountBalanceIcon fontSize="small" />}
+                    />
                   </TableCell>
                   <TableCell sx={{ color: t.amount >= 0 ? "success.main" : "error.main", fontWeight: 700 }}>{t.amount >= 0 ? "+" : "-"}{currency(Math.abs(t.amount))}</TableCell>
                   <TableCell>

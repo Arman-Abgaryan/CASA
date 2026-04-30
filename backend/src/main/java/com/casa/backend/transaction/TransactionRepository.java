@@ -33,10 +33,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     /**
      * Finds a transaction matching all provided fields for a specific user.
-     * Used for deduplication during CSV import.
+     * Used for deduplication during CSV import. The bankName is part of the
+     * key so that the same row imported from two different banks is not
+     * incorrectly treated as a duplicate.
      */
-    Transaction findByDateAndDescriptionAndAmountAndCategoryAndUser(
-            LocalDate date, String description, BigDecimal amount, String category, User user);
+    Transaction findByDateAndDescriptionAndAmountAndCategoryAndBankNameAndUser(
+            LocalDate date, String description, BigDecimal amount, String category,
+            String bankName, User user);
 
     /**
      * Looks up a transaction by Plaid's stable transaction ID, scoped to a user.

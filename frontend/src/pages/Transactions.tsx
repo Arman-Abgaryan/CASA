@@ -46,7 +46,8 @@ export default function Transactions() {
           name: t.description,
           category: t.category,
           date: t.date,
-          status: "completed",
+          // Older rows in the database may not have a bankName yet.
+          bankName: t.bankName || "Manual",
           amount: Number(t.amount),
           type: Number(t.amount) >= 0 ? "income" : "expense",
         }))

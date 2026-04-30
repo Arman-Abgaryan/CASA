@@ -8,7 +8,6 @@ import {
   Select,
   Stack,
   TextField,
-  Typography,
 } from "@mui/material";
 import api from "../../axiosConfig";
 import { useState, useEffect } from "react";
@@ -17,6 +16,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onTransactionAdded: () => void;
+  // Manually added transactions are flagged as "Manual" on the backend, so the
+  // modal does not need any bank-related controls.
   editTransaction?: {
     id: number;
     name: string;
@@ -24,7 +25,7 @@ interface Props {
     date: string;
     amount: number;
     type: string;
-    status: string;
+    bankName?: string;
   };
 }
 
@@ -35,51 +36,49 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
     date: "",
     amount: "",
     type: "income",
-    status: "pending",
   });
 
   useEffect(() => {
-    if(editTransaction) {
+    if (editTransaction) {
       setNewTx({
         name: editTransaction.name,
         category: editTransaction.category,
         date: editTransaction.date,
         amount: String(Math.abs(editTransaction.amount)),
         type: editTransaction.type,
-        status: editTransaction.status,
       });
     } else {
-      setNewTx({ name: "", category: "", date: "", amount: "", type: "income", status: "pending" });
+      setNewTx({ name: "", category: "", date: "", amount: "", type: "income" });
     }
   }, [editTransaction, open]);
 
-const handleAdd = async () => {
-  const parsedAmount = Number(newTx.amount);
-  if (!newTx.name || !newTx.category || isNaN(parsedAmount)) {
-    alert("Please fill all required fields correctly.");
-    return;
-  }
-
-  const txToSave = {
-    description: newTx.name,
-    category: newTx.category,
-    date: newTx.date || new Date().toISOString().split("T")[0],
-    amount: newTx.type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
-  };
-
-  try {
-    if (editTransaction) {
-      await api.put(`/api/transactions/${editTransaction.id}`, txToSave);
-    } else {
-      await api.post("/api/transactions/add", txToSave);
+  const handleAdd = async () => {
+    const parsedAmount = Number(newTx.amount);
+    if (!newTx.name || !newTx.category || isNaN(parsedAmount)) {
+      alert("Please fill all required fields correctly.");
+      return;
     }
-    onTransactionAdded();
-    onClose();
-  } catch (err) {
-    console.error("Failed to save transaction:", err);
-    alert("Failed to save transaction.");
-  }
-};
+
+    const txToSave = {
+      description: newTx.name,
+      category: newTx.category,
+      date: newTx.date || new Date().toISOString().split("T")[0],
+      amount: newTx.type === "expense" ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
+    };
+
+    try {
+      if (editTransaction) {
+        await api.put(`/api/transactions/${editTransaction.id}`, txToSave);
+      } else {
+        await api.post("/api/transactions/add", txToSave);
+      }
+      onTransactionAdded();
+      onClose();
+    } catch (err) {
+      console.error("Failed to save transaction:", err);
+      alert("Failed to save transaction.");
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -131,14 +130,6 @@ const handleAdd = async () => {
           >
             <MenuItem value="income">Income</MenuItem>
             <MenuItem value="expense">Expense</MenuItem>
-          </Select>
-          <Select
-            fullWidth
-            value={newTx.status}
-            onChange={(e) => setNewTx({ ...newTx, status: e.target.value })}
-          >
-            <MenuItem value="pending">Pending</MenuItem>
-            <MenuItem value="completed">Completed</MenuItem>
           </Select>
         </Stack>
       </DialogContent>

@@ -19,6 +19,11 @@ anthropic:
   api:
     key: ${ANTHROPIC_API_KEY}
 
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
+
 server:
   port: ${PORT:8080}
 
