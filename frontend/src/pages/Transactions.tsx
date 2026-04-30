@@ -43,6 +43,7 @@ export default function Transactions() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
   const [editSnackbar, setEditSnackbar] = useState(false);
+  const [plaidSnackbar, setPlaidSnackbar] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -243,6 +244,15 @@ export default function Transactions() {
             onOpenAdd={() => setOpenModal(true)}
             onOpenImport={() => setOpenImportModal(true)}
             onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
+            onPlaidImported={(summary) => {
+              fetchTransactions();
+              const total = summary.added + summary.modified;
+              setPlaidSnackbar(
+                total === 0
+                  ? "Bank connected. No new transactions found."
+                  : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`
+              );
+            }}
           />
         </Grid>
       </Grid>
@@ -278,6 +288,9 @@ export default function Transactions() {
       </Snackbar>
       <Snackbar open={editSnackbar} autoHideDuration={3000} onClose={() => setEditSnackbar(false)}>
         <Alert severity="success" variant="filled">Transaction updated!</Alert>
+      </Snackbar>
+      <Snackbar open={Boolean(plaidSnackbar)} autoHideDuration={4000} onClose={() => setPlaidSnackbar(null)}>
+        <Alert severity="success" variant="filled">{plaidSnackbar}</Alert>
       </Snackbar>
     </Stack>
   );
