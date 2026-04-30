@@ -72,9 +72,13 @@ export default function ManageBanksButton({ open, onClose, refreshKey, onRemoved
       await api.delete(`/api/plaid/items/${id}`);
       setItems((prev) => prev.filter((item) => item.id !== id));
       onRemoved?.();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to remove bank:", err);
-      setError("Couldn't remove that bank connection.");
+      const message =
+        err?.response?.data?.error ||
+        err?.message ||
+        "Couldn't remove that bank connection.";
+      setError(message);
     } finally {
       setRemovingId(null);
     }
