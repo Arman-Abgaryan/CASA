@@ -83,6 +83,19 @@ public class PlaidController {
         }
     }
 
+    @DeleteMapping("/items/{id}")
+    public ResponseEntity<?> deleteItem(@PathVariable Long id, Principal principal) {
+        try {
+            User user = userService.getByEmail(principal.getName());
+            plaidService.removeItem(user, id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (IOException e) {
+            return ResponseEntity.status(502).body(Map.of("error", "Plaid request failed: " + e.getMessage()));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/items")
     public ResponseEntity<?> listItems(Principal principal) {
         User user = userService.getByEmail(principal.getName());
