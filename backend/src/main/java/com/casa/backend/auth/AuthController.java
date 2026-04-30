@@ -1,5 +1,6 @@
 package com.casa.backend.auth;
 
+import com.casa.backend.email.EmailService;
 import com.casa.backend.user.User;
 import com.casa.backend.user.UserRepository;
 
@@ -17,9 +18,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.UUID;
+
 /**
  * REST controller responsible for handling all authentication endpoints.
- * Manages user signup, login, and session validation under /api/auth.
+ * Manages user signup, login, session validation, and the forgot/reset
+ * password flow under /api/auth.
  * Uses session-based Spring Security authentication.
  */
 @RestController
@@ -27,9 +33,19 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
+    /** How long a password reset link stays valid. */
+    private static final long RESET_TOKEN_TTL_MINUTES = 30;
+
+    /** Generic response used for /forgot-password regardless of whether
+     *  the email is registered, to prevent account enumeration. */
+    private static final String FORGOT_GENERIC_RESPONSE =
+            "If an account exists for that email, a reset link has been sent.";
+
     private final UserRepository users;
     private final PasswordEncoder encoder;
     private final AuthenticationManager auth;
+    private final PasswordResetTokenRepository resetTokens;
+    private final EmailService emailService;
 
     // --------------------------- SIGNUP ---------------------------
 
@@ -133,5 +149,67 @@ public class AuthController {
                         u.getLastName(),
                         u.getEmail(),
                         u.getProfileImageUrl()));
+    }
+
+    // --------------------------- FORGOT PASSWORD ---------------------------
+
+    /**
+     * Issues a password reset token for the given email and emails the user a
+     * link containing the token. Always returns the same 200 response whether
+     * or not the email is registered, to prevent attackers from probing for
+     * valid accounts.
+     *
+     * @param r The forgot-password request containing the user's email.
+     * @return 200 OK with a generic message.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest r) {
+        users.findByEmail(r.email()).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+
+            PasswordResetToken prt = PasswordResetToken.builder()
+                    .token(token)
+                    .userId(user.getId())
+                    .expiresAt(Instant.now().plus(RESET_TOKEN_TTL_MINUTES, ChronoUnit.MINUTES))
+                    .used(false)
+                    .build();
+            resetTokens.save(prt);
+
+            emailService.sendPasswordResetEmail(user.getEmail(), token);
+        });
+
+        return ResponseEntity.ok(FORGOT_GENERIC_RESPONSE);
+    }
+
+    // --------------------------- RESET PASSWORD ---------------------------
+
+    /**
+     * Validates a reset token and, on success, updates the associated user's
+     * password to the supplied new value. Tokens are single-use and time-limited.
+     *
+     * @param r The reset-password request containing the token and new password.
+     * @return 200 OK on success, or 400 Bad Request if the token is missing,
+     *         expired, already used, or the user has been deleted.
+     */
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest r) {
+        PasswordResetToken prt = resetTokens.findByToken(r.token()).orElse(null);
+
+        if (prt == null || prt.isUsed() || prt.getExpiresAt().isBefore(Instant.now())) {
+            return ResponseEntity.badRequest().body("This reset link is invalid or has expired.");
+        }
+
+        User user = users.findById(prt.getUserId()).orElse(null);
+        if (user == null) {
+            return ResponseEntity.badRequest().body("This reset link is invalid or has expired.");
+        }
+
+        user.setPasswordHash(encoder.encode(r.newPassword()));
+        users.save(user);
+
+        prt.setUsed(true);
+        resetTokens.save(prt);
+
+        return ResponseEntity.ok("Your password has been reset. You can now log in with your new password.");
     }
 }
