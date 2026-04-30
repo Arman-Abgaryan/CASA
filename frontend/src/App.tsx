@@ -38,10 +38,12 @@ export default function App() {
           sx={{
             flex: 1,
             minWidth: 0,
+            width: "100%",
             overflow: isPublicPage ? "visible" : "auto",
-            ml: { xs: 0, md: isPublicPage ? 0 : "240px" },
-            pt: isPublicPage ? 0 : { xs: 10, md: 0 },
-            p: isPublicPage ? 0 : { xs: 2, sm: 3 },
+            ml: 0,
+            pt: isPublicPage ? 0 : { xs: "84px", sm: "92px", md: 0 },
+            px: isPublicPage ? 0 : { xs: 2, sm: 3, md: 4 },
+            pb: isPublicPage ? 0 : { xs: 3, sm: 4 },
           }}
         >
           <Routes>
