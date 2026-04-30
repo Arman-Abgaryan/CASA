@@ -126,10 +126,16 @@ export default function Dashboard() {
             <Typography variant="subtitle1" color="text.secondary">Welcome back! Here's your financial summary</Typography>
           </Box>
 
-          <Stack direction="row" spacing={1} alignItems="center" alignSelf={{ xs: "flex-end", sm: "auto" }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            alignSelf={{ xs: "flex-start", sm: "auto" }}
+            sx={{ display: { xs: "none", md: "flex" } }}
+          >
             <IconButton><SearchIcon /></IconButton>
             <IconButton><NotificationsNoneIcon /></IconButton>
-            <Divider orientation="vertical" flexItem sx={{ height: 35, display: { xs: "none", sm: "block" } }} />
+            <Divider orientation="vertical" flexItem sx={{ height: 35 }} />
             <IconButton onClick={(e) => (!isLoggedIn ? navigate("/login") : setAnchorEl(e.currentTarget))} sx={{ p: 0.5 }}>
               <Avatar src={profileImageUrl ?? undefined} sx={{ width: 32, height: 32, bgcolor: "#bdbdbd" }} />
             </IconButton>
