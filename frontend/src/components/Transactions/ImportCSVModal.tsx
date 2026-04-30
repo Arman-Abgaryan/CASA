@@ -39,8 +39,15 @@ export default function ImportCSVModal({ open, onClose, onImportComplete }: Prop
   const [detectedBank, setDetectedBank] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  // When an import succeeds we close the dialog FIRST and defer the success
+  // callbacks (parent refetch, snackbar, etc.) until the close transition
+  // finishes. This avoids a known MUI quirk where firing more state updates /
+  // portals while the Dialog is closing can leave `overflow: hidden` stuck on
+  // <body>, which makes the page un-scrollable until refresh.
+  const [pendingSuccess, setPendingSuccess] = useState(false);
 
   const reset = () => {
+    setCsvFile(null);
     setCsvPreview([]);
     setCsvErrors([]);
     setDetectedBank("");
@@ -49,7 +56,9 @@ export default function ImportCSVModal({ open, onClose, onImportComplete }: Prop
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setCsvFile(e.target.files[0]);
-      reset();
+      setCsvPreview([]);
+      setCsvErrors([]);
+      setDetectedBank("");
     }
   };
 
@@ -66,9 +75,14 @@ export default function ImportCSVModal({ open, onClose, onImportComplete }: Prop
       setCsvPreview(res.data.preview || []);
       setCsvErrors(res.data.errors || []);
       setDetectedBank(res.data.bankName || "Unknown");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to preview CSV:", err);
-      alert("Failed to preview CSV. Make sure your Gemini API key is configured on the backend.");
+      const serverMsg = err?.response?.data?.error;
+      alert(
+        serverMsg
+          ? `Failed to preview CSV:\n${serverMsg}`
+          : "Failed to preview CSV. Check the backend logs for details."
+      );
     } finally {
       setPreviewLoading(false);
     }
@@ -83,16 +97,32 @@ export default function ImportCSVModal({ open, onClose, onImportComplete }: Prop
 
     try {
       await api.post("/api/transactions/upload/confirm", formData);
-
-      onImportComplete();
+      // Mark that we want to fire success callbacks once the dialog finishes
+      // closing, then close the dialog. The actual refresh + snackbar happen
+      // in the Dialog's TransitionProps.onExited handler below.
+      setPendingSuccess(true);
       onClose();
-      setCsvFile(null);
-      reset();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to confirm CSV import:", err);
-      alert("Failed to import CSV.");
+      const serverMsg = err?.response?.data?.error;
+      alert(serverMsg ? `Failed to import CSV:\n${serverMsg}` : "Failed to import CSV.");
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  // Called by MUI after the close transition completes and the Dialog's
+  // portal has been torn down. By this point, MUI has already restored body
+  // scroll. Now it is safe to trigger renders that mount other portals
+  // (Snackbar, etc.) without confusing the scroll-lock bookkeeping.
+  const handleExited = () => {
+    if (pendingSuccess) {
+      setPendingSuccess(false);
+      reset();
+      onImportComplete();
+    } else {
+      // Plain close (Cancel / backdrop click). Just clean local state up.
+      reset();
     }
   };
 
@@ -100,7 +130,13 @@ export default function ImportCSVModal({ open, onClose, onImportComplete }: Prop
   const hasPreview = csvPreview.length > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="md"
+      TransitionProps={{ onExited: handleExited }}
+    >
       <DialogTitle mb={-2}>Import CSV</DialogTitle>
       <DialogContent>
         <Stack spacing={2} mt={1}>
