@@ -13,6 +13,8 @@ public interface PlaidItemRepository extends JpaRepository<PlaidItem, Long> {
     /** All bank connections belonging to a user. */
     List<PlaidItem> findAllByUser(User user);
 
+    Optional<PlaidItem> findByIdAndUser(Long id, User user);
+
     /** Look up a specific Item by Plaid's item_id (used during webhook handling later). */
     Optional<PlaidItem> findByItemId(String itemId);
 }

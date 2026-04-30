@@ -25,6 +25,9 @@ import { useAuth } from "../AuthContext";
 import AddTransactionModal from "../components/Transactions/AddTransactionModal";
 import ImportCSVModal from "../components/Transactions/ImportCSVModal";
 import TransactionTable from "../components/Transactions/TransactionTable";
+import PlaidLinkButton from "../components/Transactions/PlaidLinkButton";
+import SyncBankButton from "../components/Transactions/SyncBankButton";
+import ManageBanksButton from "../components/Transactions/ManageBanksButton";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -43,7 +46,12 @@ export default function Transactions() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
   const [editSnackbar, setEditSnackbar] = useState(false);
-  const [plaidSnackbar, setPlaidSnackbar] = useState<string | null>(null);
+  const [plaidSnackbar, setPlaidSnackbar] = useState<{
+    message: string;
+    severity: "success" | "info";
+  } | null>(null);
+  const [manageBanksOpen, setManageBanksOpen] = useState(false);
+  const [bankListRefreshKey, setBankListRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -197,6 +205,38 @@ export default function Transactions() {
             </MenuItem>
           </Menu>
         </Grid>
+        <Grid item xs={12} md={6}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1} justifyContent="flex-end">
+            <PlaidLinkButton
+              onImported={(summary) => {
+                setBankListRefreshKey((prev) => prev + 1);
+                fetchTransactions();
+                const total = summary.added + summary.modified;
+                setPlaidSnackbar({
+                  message:
+                    total === 0
+                      ? "Bank connected, but there were no new transactions to import."
+                      : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`,
+                  severity: total === 0 ? "info" : "success",
+                });
+              }}
+            />
+            <SyncBankButton onSynced={(summary) => {
+              fetchTransactions();
+              setPlaidSnackbar(
+                summary.itemsSynced === 0
+                  ? { message: "No bank connected yet — click Connect Bank first.", severity: "info" }
+                  : {
+                      message: `Bank refresh complete — ${summary.added + summary.modified} transaction(s) added or updated${summary.removed ? `, ${summary.removed} removed` : ""}.`,
+                      severity: "success",
+                    }
+              );
+            }} />
+            <Button variant="outlined" onClick={() => setManageBanksOpen(true)}>
+              Manage Banks
+            </Button>
+          </Stack>
+        </Grid>
       </Grid>
 
       {/* KPI CARDS + TABLE */}
@@ -244,15 +284,6 @@ export default function Transactions() {
             onOpenAdd={() => setOpenModal(true)}
             onOpenImport={() => setOpenImportModal(true)}
             onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
-            onPlaidImported={(summary) => {
-              fetchTransactions();
-              const total = summary.added + summary.modified;
-              setPlaidSnackbar(
-                total === 0
-                  ? "Bank connected. No new transactions found."
-                  : `Imported ${summary.added} new transaction${summary.added === 1 ? "" : "s"} from your bank.`
-              );
-            }}
           />
         </Grid>
       </Grid>
@@ -278,6 +309,19 @@ export default function Transactions() {
         }}
       />
 
+      <ManageBanksButton
+        open={manageBanksOpen}
+        onClose={() => setManageBanksOpen(false)}
+        refreshKey={bankListRefreshKey}
+        onRemoved={() => {
+          setBankListRefreshKey((prev) => prev + 1);
+          setPlaidSnackbar({
+            message: "Bank connection removed. Existing imported transactions were kept.",
+            severity: "success",
+          });
+        }}
+      />
+
       {/* SNACKBARS */}
       <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)}>
         <Alert severity="success" variant="filled">Transaction added!</Alert>
@@ -289,8 +333,14 @@ export default function Transactions() {
       <Snackbar open={editSnackbar} autoHideDuration={3000} onClose={() => setEditSnackbar(false)}>
         <Alert severity="success" variant="filled">Transaction updated!</Alert>
       </Snackbar>
-      <Snackbar open={Boolean(plaidSnackbar)} autoHideDuration={4000} onClose={() => setPlaidSnackbar(null)}>
-        <Alert severity="success" variant="filled">{plaidSnackbar}</Alert>
+      <Snackbar
+        open={Boolean(plaidSnackbar)}
+        autoHideDuration={4000}
+        onClose={() => setPlaidSnackbar(null)}
+      >
+        <Alert severity={plaidSnackbar?.severity ?? "success"} variant="filled">
+          {plaidSnackbar?.message}
+        </Alert>
       </Snackbar>
     </Stack>
   );
