@@ -30,14 +30,17 @@ import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
 import AnimatedPage from "../components/AnimatedPage";
 
+type DateRange = "This Month" | "Last Month" | "This Year";
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { isLoggedIn, setIsLoggedIn, profileImageUrl } = useAuth();
 
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  // Top-level date range, mirrors the Transactions page selector.
+  const [dateRange, setDateRange] = useState<DateRange>("This Month");
   const open = Boolean(anchorEl);
   const COLORS = ["#6ec1e4", "#f5b971"];
 
@@ -58,46 +61,122 @@ export default function Dashboard() {
     if (isLoggedIn) fetchUserData();
   }, [isLoggedIn]);
 
-  const filteredTransactions = useMemo(() => {
-    return transactions.filter((t) => MONTHS[new Date(t.date).getUTCMonth()] === selectedMonth);
-  }, [transactions, selectedMonth]);
+  /**
+   * Predicate: does this transaction fall within the selected date range?
+   * Uses the same UTC-month logic as the Transactions page so the two views
+   * always agree on what "this month" means.
+   */
+  const inRange = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    if (dateRange === "This Month") {
+      return (t: any) => {
+        const d = new Date(t.date);
+        return d.getUTCMonth() === currentMonth && d.getUTCFullYear() === currentYear;
+      };
+    }
+    if (dateRange === "Last Month") {
+      const lastMonthDate = new Date(currentYear, currentMonth - 1);
+      const lastMonthIdx = lastMonthDate.getMonth();
+      const lastMonthYear = lastMonthDate.getFullYear();
+      return (t: any) => {
+        const d = new Date(t.date);
+        return d.getUTCMonth() === lastMonthIdx && d.getUTCFullYear() === lastMonthYear;
+      };
+    }
+    // "This Year"
+    return (t: any) => new Date(t.date).getUTCFullYear() === currentYear;
+  }, [dateRange]);
+
+  const filteredTransactions = useMemo(() => transactions.filter(inRange), [transactions, inRange]);
 
   const currency = (n: number) =>
     n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-  const totalIncome = useMemo(() => transactions.filter((t) => t.amount > 0).reduce((sum, t) => sum + t.amount, 0), [transactions]);
-  const totalExpenses = useMemo(() => transactions.filter((t) => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0), [transactions]);
+  // KPIs and pie chart now reflect the selected range, not the whole dataset.
+  const totalIncome = useMemo(
+    () => filteredTransactions.filter((t) => t.amount > 0).reduce((sum, t) => sum + t.amount, 0),
+    [filteredTransactions]
+  );
+  const totalExpenses = useMemo(
+    () => filteredTransactions.filter((t) => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0),
+    [filteredTransactions]
+  );
   const totalCashFlow = totalIncome + totalExpenses;
   const cashFlow = [
     { name: "Income", value: totalIncome },
     { name: "Expenses", value: totalExpenses },
   ];
 
+  /**
+   * Bar chart data. For "This Year" we keep the original 12-month layout.
+   * For monthly ranges, we collapse to a single bar so the chart still
+   * tells a useful story instead of showing 11 empty months.
+   */
   const chartData = useMemo(() => {
-    const monthly: Record<string, { name: string; income: number; expense: number }> = {};
-    MONTHS.forEach((m) => {
-      monthly[m] = { name: m, income: 0, expense: 0 };
+    if (dateRange === "This Year") {
+      const monthly: Record<string, { name: string; income: number; expense: number }> = {};
+      MONTHS.forEach((m) => { monthly[m] = { name: m, income: 0, expense: 0 }; });
+      filteredTransactions.forEach((t) => {
+        const month = MONTHS[new Date(t.date).getUTCMonth()];
+        if (t.amount > 0) monthly[month].income += t.amount;
+        else monthly[month].expense += Math.abs(t.amount);
+      });
+      return Object.values(monthly);
+    }
+    const label = dateRange === "This Month" ? MONTHS[new Date().getMonth()]
+      : MONTHS[new Date(new Date().getFullYear(), new Date().getMonth() - 1).getMonth()];
+    const single = { name: label, income: 0, expense: 0 };
+    filteredTransactions.forEach((t) => {
+      if (t.amount > 0) single.income += t.amount;
+      else single.expense += Math.abs(t.amount);
     });
-    transactions.forEach((t) => {
-      const month = MONTHS[new Date(t.date).getUTCMonth()];
-      if (t.amount > 0) monthly[month].income += t.amount;
-      else monthly[month].expense += Math.abs(t.amount);
-    });
-    return Object.values(monthly);
-  }, [transactions]);
+    return [single];
+  }, [filteredTransactions, dateRange]);
 
-  const currentMonthIndex = new Date().getMonth();
-  const lastMonthIndex = (currentMonthIndex - 1 + 12) % 12;
+  /**
+   * Compute KPIs as "selected period vs the period before it" so the
+   * percentage delta stays meaningful when the user toggles the range.
+   *   - This Month  → vs last month
+   *   - Last Month  → vs the month before that
+   *   - This Year   → vs last year
+   */
+  const { currentTotals, previousTotals } = useMemo(() => {
+    const now = new Date();
+    let curStart: Date, curEnd: Date, prevStart: Date, prevEnd: Date;
 
-  const calcMonthlyTotal = (monthIndex: number, positive: boolean) =>
-    transactions
-      .filter((t) => new Date(t.date).getUTCMonth() === monthIndex && (positive ? t.amount > 0 : t.amount < 0))
-      .reduce((s, t) => s + Math.abs(t.amount), 0);
+    if (dateRange === "This Month") {
+      curStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      curEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    } else if (dateRange === "Last Month") {
+      curStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      curEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
+    } else {
+      curStart = new Date(now.getFullYear(), 0, 1);
+      curEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+      prevStart = new Date(now.getFullYear() - 1, 0, 1);
+      prevEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+    }
 
-  const lastMonthIncome = calcMonthlyTotal(lastMonthIndex, true);
-  const lastMonthExpenses = calcMonthlyTotal(lastMonthIndex, false);
-  const currentMonthIncome = calcMonthlyTotal(currentMonthIndex, true);
-  const currentMonthExpenses = calcMonthlyTotal(currentMonthIndex, false);
+    const sumIn = (start: Date, end: Date, positive: boolean) =>
+      transactions
+        .filter((t) => {
+          const d = new Date(t.date);
+          return d >= start && d <= end && (positive ? t.amount > 0 : t.amount < 0);
+        })
+        .reduce((s, t) => s + Math.abs(t.amount), 0);
+
+    return {
+      currentTotals: { income: sumIn(curStart, curEnd, true), expense: sumIn(curStart, curEnd, false) },
+      previousTotals: { income: sumIn(prevStart, prevEnd, true), expense: sumIn(prevStart, prevEnd, false) },
+    };
+  }, [transactions, dateRange]);
 
   function calcDelta(current: number, previous: number): number {
     if (previous === 0) return current === 0 ? 0 : 100;
@@ -105,8 +184,8 @@ export default function Dashboard() {
   }
 
   const kpi = [
-    { label: "Total Income", value: currentMonthIncome, delta: calcDelta(currentMonthIncome, lastMonthIncome), type: "income" },
-    { label: "Total Expenses", value: currentMonthExpenses, delta: calcDelta(currentMonthExpenses, lastMonthExpenses), type: "expenses" },
+    { label: "Total Income", value: currentTotals.income, delta: calcDelta(currentTotals.income, previousTotals.income), type: "income" },
+    { label: "Total Expenses", value: currentTotals.expense, delta: calcDelta(currentTotals.expense, previousTotals.expense), type: "expenses" },
   ];
 
   const handleLogout = () => {
@@ -146,6 +225,22 @@ export default function Dashboard() {
             </Menu>
           </Stack>
         </Box>
+
+        {/* Top-level date range selector — mirrors the Transactions page. */}
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} sm={4} md={3}>
+            <Select
+              size="small"
+              fullWidth
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as DateRange)}
+            >
+              <MenuItem value="This Month">This Month</MenuItem>
+              <MenuItem value="Last Month">Last Month</MenuItem>
+              <MenuItem value="This Year">This Year</MenuItem>
+            </Select>
+          </Grid>
+        </Grid>
 
         <Grid container spacing={2}>
           {kpi.map((k) => {
@@ -218,9 +313,7 @@ export default function Dashboard() {
               <CardContent>
                 <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1.5} mb={1}>
                   <Typography variant="h6">Recent Transactions</Typography>
-                  <Select size="small" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} sx={{ minWidth: { xs: "100%", sm: 110 } }}>
-                    {MONTHS.map((m) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                  </Select>
+                  <Typography variant="body2" color="text.secondary">{dateRange}</Typography>
                 </Stack>
 
                 <Divider sx={{ mb: 1 }} />

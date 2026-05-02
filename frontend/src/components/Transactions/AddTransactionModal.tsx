@@ -11,54 +11,82 @@ import {
   TextField,
 } from "@mui/material";
 import api from "../../axiosConfig";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+
+interface EditableTx {
+  id: number;
+  name: string;
+  category: string;
+  date: string;
+  amount: number;
+  type: string;
+  bankName?: string;
+}
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onTransactionAdded: () => void;
-  /**
-   * Bank names already present on other transactions, used to populate the
-   * Bank autocomplete dropdown. Always includes at least "Manual".
-   */
   bankNames?: string[];
-  editTransaction?: {
-    id: number;
-    name: string;
-    category: string;
-    date: string;
-    amount: number;
-    type: string;
-    bankName?: string;
-  };
+  editTransaction?: EditableTx | null;
 }
 
+/**
+ * Normalize whatever date string we got from the backend into the
+ * "YYYY-MM-DD" shape that <input type="date"> requires. The backend
+ * normally returns this format already, but if anything ever ships a
+ * timestamp ("2025-01-01T00:00:00") we don't want the field to silently
+ * stay empty — slice off the time part instead.
+ */
+function toInputDate(value: string): string {
+  if (!value) return "";
+  // Already in YYYY-MM-DD form.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // ISO with time component → take the date part.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return value.slice(0, 10);
+  // Anything else (e.g. "1/2/2025") — try Date parsing.
+  const d = new Date(value);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
+const EMPTY_FORM = {
+  name: "",
+  category: "",
+  date: "",
+  amount: "",
+  type: "income",
+  bankName: "Manual",
+};
+
+/**
+ * The modal is intended to be remounted (via `key` on the parent) whenever
+ * the edit target changes, so we can read editTransaction once at mount
+ * and skip the useEffect synchronization dance entirely.
+ */
 export default function AddTransactionModal({ open, onClose, onTransactionAdded, bankNames, editTransaction }: Props) {
-  const [newTx, setNewTx] = useState({
-    name: "",
-    category: "",
-    date: "",
-    amount: "",
-    type: "income",
-    bankName: "Manual",
+  // Lazy initializer — runs once on mount. Because the parent passes a
+  // `key` based on the editing transaction id, this initializer always sees
+  // the correct editTransaction for THIS instance.
+  const [newTx, setNewTx] = useState(() => {
+    if (editTransaction) {
+      return {
+        name: editTransaction.name ?? "",
+        category: editTransaction.category ?? "",
+        date: toInputDate(editTransaction.date),
+        amount: String(Math.abs(editTransaction.amount ?? 0)),
+        type: editTransaction.type ?? (editTransaction.amount >= 0 ? "income" : "expense"),
+        bankName: editTransaction.bankName || "Manual",
+      };
+    }
+    return { ...EMPTY_FORM };
   });
 
-  useEffect(() => {
-    if (editTransaction) {
-      setNewTx({
-        name: editTransaction.name,
-        category: editTransaction.category,
-        date: editTransaction.date,
-        amount: String(Math.abs(editTransaction.amount)),
-        type: editTransaction.type,
-        bankName: editTransaction.bankName || "Manual",
-      });
-    } else {
-      setNewTx({ name: "", category: "", date: "", amount: "", type: "income", bankName: "Manual" });
-    }
-  }, [editTransaction, open]);
+  const isEditing = Boolean(editTransaction);
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     const parsedAmount = Number(newTx.amount);
     if (!newTx.name || !newTx.category || isNaN(parsedAmount)) {
       alert("Please fill all required fields correctly.");
@@ -74,7 +102,10 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
     };
 
     try {
-      if (editTransaction) {
+      // Branch on the captured `editTransaction` from this mount, NOT a
+      // re-evaluated prop, so even if the parent's editTx state changes
+      // mid-save we still correctly hit PUT vs POST.
+      if (editTransaction && editTransaction.id) {
         await api.put(`/api/transactions/${editTransaction.id}`, txToSave);
       } else {
         await api.post("/api/transactions/add", txToSave);
@@ -87,12 +118,11 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
     }
   };
 
-  // Always offer "Manual" as a baseline option even if no other transactions exist yet.
   const bankOptions = Array.from(new Set(["Manual", ...(bankNames || [])])).sort();
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle mb={-2}>{editTransaction ? "Edit Transaction" : "Add New Transaction"}</DialogTitle>
+      <DialogTitle mb={-2}>{isEditing ? "Edit Transaction" : "Add New Transaction"}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} mt={1}>
           <TextField
@@ -141,11 +171,6 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
             <MenuItem value="income">Income</MenuItem>
             <MenuItem value="expense">Expense</MenuItem>
           </Select>
-          {/*
-            freeSolo lets the user either pick an existing bank from the dropdown
-            (most common — Chase, Citibank, etc. they've already imported from)
-            or type a brand-new name without us having to predefine the list.
-          */}
           <Autocomplete
             freeSolo
             options={bankOptions}
@@ -164,7 +189,7 @@ export default function AddTransactionModal({ open, onClose, onTransactionAdded,
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleAdd}>{editTransaction ? "Save" : "Add"}</Button>
+        <Button variant="contained" onClick={handleSave}>{isEditing ? "Save" : "Add"}</Button>
       </DialogActions>
     </Dialog>
   );
