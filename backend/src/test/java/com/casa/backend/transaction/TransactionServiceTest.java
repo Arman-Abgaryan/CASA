@@ -1,6 +1,9 @@
 package com.casa.backend.transaction;
 
+import com.casa.backend.budget.BudgetRepository;
+import com.casa.backend.email.EmailService;
 import com.casa.backend.user.User;
+import com.casa.backend.user.UserPreferencesService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -24,11 +27,24 @@ class TransactionServiceTest {
     @Mock
     private GeminiCsvParserService geminiParser;
 
+    @Mock
+    private BudgetRepository budgetRepository;
+
+    @Mock
+    private UserPreferencesService preferencesService;
+
+    @Mock
+    private EmailService emailService;
+
     private TransactionService service;
 
     TransactionServiceTest() {
         MockitoAnnotations.openMocks(this);
-        service = new TransactionService(repo, geminiParser);
+        service = new TransactionService(repo, geminiParser, budgetRepository, preferencesService, emailService);
+        // Defaults so the budget-threshold check inside saveTransaction is a
+        // no-op and doesn't interfere with the assertions in each test.
+        when(budgetRepository.findAllByUser(any())).thenReturn(List.of());
+        when(preferencesService.getOrCreate(any())).thenReturn(new com.casa.backend.user.UserPreferences());
     }
 
     @Test
