@@ -46,6 +46,7 @@ public class AuthController {
     private final AuthenticationManager auth;
     private final PasswordResetTokenRepository resetTokens;
     private final EmailService emailService;
+    private final com.casa.backend.user.UserPreferencesService preferencesService;
 
     // --------------------------- SIGNUP ---------------------------
 
@@ -102,6 +103,20 @@ public class AuthController {
 
             User u = users.findByEmail(r.email()).orElseThrow();
 
+            // Fire login-notification email if the user has it enabled. Best
+            // effort — failures are swallowed inside EmailService so a flaky
+            // mail provider can never block sign-in.
+            try {
+                var prefs = preferencesService.getOrCreate(u);
+                if (prefs.isNotifyLogin()) {
+                    String ip = extractClientIp(request);
+                    String ua = request.getHeader("User-Agent");
+                    emailService.sendLoginNotificationEmail(u.getEmail(), u.getFirstName(), ip, ua);
+                }
+            } catch (Exception logErr) {
+                // Never let a notification failure break login.
+            }
+
             return ResponseEntity.ok(
                     new AuthResponse(
                             u.getFirstName(),
@@ -114,6 +129,24 @@ public class AuthController {
                     .status(401)
                     .body("Invalid email or password");
         }
+    }
+
+    /**
+     * Pulls the client's real IP from common proxy headers if present (Render
+     * sits behind a load balancer that sets X-Forwarded-For), falling back to
+     * the direct remote address. Just used for display in notification emails,
+     * not security-sensitive.
+     */
+    private String extractClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            // X-Forwarded-For may be a comma-separated list — first entry is the original client.
+            int comma = xff.indexOf(',');
+            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
+        }
+        String real = request.getHeader("X-Real-IP");
+        if (real != null && !real.isBlank()) return real.trim();
+        return request.getRemoteAddr();
     }
 
     // --------------------------- ME ---------------------------
