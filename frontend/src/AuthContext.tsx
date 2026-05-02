@@ -15,6 +15,7 @@ export const AuthContext = createContext<AuthContextType>({
   setProfileImageUrl: () => {},
 });
 
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(
     Boolean(localStorage.getItem("loggedIn") && localStorage.getItem("email"))
@@ -25,29 +26,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/auth/me`, {
-      credentials: "include",
-    })
-      .then(res => {
-        if (!res.ok) {
+
+    if (!isLoggedIn) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, {
+          credentials: "include",
+        });
+        if (cancelled) return;
+
+        if (res.status === 401) {
+          // Definitive: the server says this session is not valid.
           localStorage.clear();
           setIsLoggedIn(false);
           setProfileImageUrl(null);
-        } else {
-          return res.json();
+          return;
         }
-      })
-      .then(data => {
-        if (data?.profileImageUrl) {
+
+        if (!res.ok) {
+          console.warn(`/api/auth/me returned ${res.status}; keeping local auth state.`);
+          return;
+        }
+
+        const data = await res.json();
+        if (!cancelled && data?.profileImageUrl) {
           setProfileImageUrl(data.profileImageUrl);
           localStorage.setItem("profileImageUrl", data.profileImageUrl);
         }
-      })
-      .catch(() => {
-        localStorage.clear();
-        setIsLoggedIn(false);
-        setProfileImageUrl(null);
-      });
+      } catch (err) {
+
+        console.warn("/api/auth/me failed; keeping local auth state.", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+
   }, []);
 
   return (
