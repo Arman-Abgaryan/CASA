@@ -16,6 +16,7 @@ import {
   DialogContent,
   DialogActions,
   Stack,
+  LinearProgress,
 } from "@mui/material";
 
 import {
@@ -29,6 +30,30 @@ import ProgressBar from "../components/ProgressBar";
 import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
 
+const PIE_COLORS = [
+  "#6EC1E4", "#F5B971", "#9CCC65",
+  "#BA68C8", "#FF8A65", "#4DB6AC"
+];
+
+const currency = (n: number) =>
+  n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 60;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  if (percent < 0.02) return null;
+
+  return (
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#333" fontFamily="Roboto, sans-serif">
+      <tspan x={x} dy="-0.4em" fontWeight="bold" fill="#333">{`${(percent * 100).toFixed(0)}%`}</tspan>
+      <tspan x={x} dy="1.2em" fill="#666">{name}</tspan>
+    </text>
+  );
+};
+
 export default function Budgets() {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
@@ -37,9 +62,7 @@ export default function Budgets() {
   const [budgets, setBudgets] = useState([]);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setBudgets([]);
-    }
+    if (!isLoggedIn) setBudgets([]);
   }, [isLoggedIn]);
 
   const fetchBudgets = async () => {
@@ -88,6 +111,65 @@ export default function Budgets() {
     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
   });
 
+  // --------------------- Category Budgets --------------------- //
+  const [categoryBudgets, setCategoryBudgets] = useState([]);
+  const [openCategoryDialog, setOpenCategoryDialog] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatAmount, setNewCatAmount] = useState("");
+
+  const fetchCategoryBudgets = async () => {
+    try {
+      const res = await api.get("/api/category-budgets");
+      setCategoryBudgets(res.data);
+    } catch (err) {
+      console.error("Failed to load category budgets:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) fetchCategoryBudgets();
+  }, [isLoggedIn]);
+
+  const handleSaveCategoryBudget = async () => {
+    if (!newCatName || !newCatAmount) return;
+    try {
+      const budgetId = budgets.length > 0 ? budgets[0].id : null;
+      if (!budgetId) {
+        alert("Please set a monthly budget first.");
+        return;
+      }
+      await api.post(`/api/category-budgets/budget/${budgetId}`, {
+        category: newCatName,
+        maxAmount: Number(newCatAmount),
+      });
+      fetchCategoryBudgets();
+      setNewCatName("");
+      setNewCatAmount("");
+      setOpenCategoryDialog(false);
+    } catch (err) {
+      console.error("Failed to save category budget:", err);
+    }
+  };
+
+  const handleDeleteCategoryBudget = async (id: number) => {
+    try {
+      await api.delete(`/api/category-budgets/${id}`);
+      setCategoryBudgets(prev => prev.filter((cb: any) => cb.id !== id));
+    } catch (err) {
+      console.error("Failed to delete category budget:", err);
+    }
+  };
+
+  // Calculate spending per category this month
+  const categorySpending: Record<string, number> = {};
+  monthlyTransactions
+    .filter(t => t.amount < 0)
+    .forEach(t => {
+      const cat = t.category || "Uncategorized";
+      if (!categorySpending[cat]) categorySpending[cat] = 0;
+      categorySpending[cat] += Math.abs(t.amount);
+    });
+
   // --------------------- Add/Remove Budget --------------------- //
   const [openAddBudget, setOpenAddBudget] = useState(false);
   const [budgetAmount, setBudgetAmount] = useState("");
@@ -113,7 +195,6 @@ export default function Budgets() {
   const handleResetBudgets = async () => {
     const confirmReset = window.confirm("Are you sure you want to reset this month's budget?");
     if (!confirmReset) return;
-
     try {
       for (const b of budgets) {
         await api.delete(`/api/budgets/${b.id}`);
@@ -163,27 +244,6 @@ export default function Budgets() {
 
   const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
 
-  const PIE_COLORS = [
-    "#6EC1E4", "#F5B971", "#9CCC65",
-    "#BA68C8", "#FF8A65", "#4DB6AC"
-  ];
-
-  const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
-  const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 60;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  if (percent < 0.02) return null;
-
-  return (
-    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#333" fontFamily="Roboto, sans-serif">
-      <tspan x={x} dy="-0.4em" fontWeight="bold" fill="#333">{`${(percent * 100).toFixed(0)}%`}</tspan>
-      <tspan x={x} dy="1.2em" fill="#666">{name}</tspan>
-    </text>
-  );
-};
-
   return (
     <Box>
       <Typography variant="h4" fontWeight="bold">Budgets</Typography>
@@ -192,83 +252,160 @@ export default function Budgets() {
       </Typography>
 
       <Grid container spacing={3}>
-        {/* ---------------- LEFT: Monthly Budget Summary ---------------- */}
+        {/* ---------------- LEFT COLUMN ---------------- */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
-            <CardContent>
-              <Typography variant="h6" fontWeight={700}>
-                Budget for {new Date().toLocaleString("en-US", { month: "long" })}
-              </Typography>
+          <Stack spacing={3}>
 
-              <Divider sx={{ my: 2 }} />
-
-              <Box sx={{ my: 2 }}>
-                <Typography><strong>Total Budget:</strong> ${totalBudget.toLocaleString()}</Typography>
-                <Typography><strong>Income:</strong> ${totalIncome.toLocaleString()}</Typography>
-                <Typography><strong>Expenses:</strong> ${totalExpenses.toLocaleString()}</Typography>
-                <Typography><strong>Remaining:</strong> ${remaining.toLocaleString()}</Typography>
-              </Box>
-
-              {hasBudget ? (
-                <>
-                  <Box sx={{ mt: 2, mb: 1 }}>
-                    <ProgressBar current={totalExpenses} target={totalBudget} color={progressColor} />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    {statusMessage}
-                  </Typography>
-                </>
-              ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                  No budget set for this month. Click "Add Budget" to begin!
+            {/* Monthly Budget Card */}
+            <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
+              <CardContent>
+                <Typography variant="h6" fontWeight={700}>
+                  Budget for {new Date().toLocaleString("en-US", { month: "long" })}
                 </Typography>
-              )}
 
-              <Button
-                variant="contained"
-                sx={{ backgroundColor: "green", color: "white", borderRadius: 2, mb: 2, mt: 2, "&:hover": { backgroundColor: "#006B01" } }}
-                onClick={handleAddBudget}
-              >
-                + Add Budget
-              </Button>
+                <Divider sx={{ my: 2 }} />
 
-              <Button
-                variant="outlined"
-                color="error"
-                sx={{ borderRadius: 2, ml: 2, borderColor: "error.main", color: "error.main", "&:hover": { backgroundColor: "#ffebeb" } }}
-                onClick={handleResetBudgets}
-              >
-                Reset Budget
-              </Button>
-            </CardContent>
-          </Card>
+                <Box sx={{ my: 2 }}>
+                  <Typography><strong>Total Budget:</strong> ${totalBudget.toLocaleString()}</Typography>
+                  <Typography><strong>Income:</strong> ${totalIncome.toLocaleString()}</Typography>
+                  <Typography><strong>Expenses:</strong> ${totalExpenses.toLocaleString()}</Typography>
+                  <Typography><strong>Remaining:</strong> ${remaining.toLocaleString()}</Typography>
+                </Box>
+
+                {hasBudget ? (
+                  <>
+                    <Box sx={{ mt: 2, mb: 1 }}>
+                      <ProgressBar current={totalExpenses} target={totalBudget} color={progressColor} />
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {statusMessage}
+                    </Typography>
+                  </>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    No budget set for this month. Click "Add Budget" to begin!
+                  </Typography>
+                )}
+
+                <Button
+                  variant="contained"
+                  sx={{ backgroundColor: "green", color: "white", borderRadius: 2, mb: 2, mt: 2, "&:hover": { backgroundColor: "#006B01" } }}
+                  onClick={handleAddBudget}
+                >
+                  + Add Budget
+                </Button>
+
+                <Button
+                  variant="outlined"
+                  color="error"
+                  sx={{ borderRadius: 2, ml: 2, borderColor: "error.main", color: "error.main", "&:hover": { backgroundColor: "#ffebeb" } }}
+                  onClick={handleResetBudgets}
+                >
+                  Reset Budget
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Category Budgets Card */}
+            <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
+              <CardContent>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" fontWeight={700}>Category Budgets</Typography>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    sx={{ backgroundColor: "green", "&:hover": { backgroundColor: "#006B01" } }}
+                    onClick={() => setOpenCategoryDialog(true)}
+                  >
+                    + Add
+                  </Button>
+                </Stack>
+
+                <Divider sx={{ my: 2 }} />
+
+                {categoryBudgets.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No category budgets set. Click "+ Add" to create one.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {categoryBudgets.map((cb: any) => {
+                      const spent = categorySpending[cb.category] || 0;
+                      const pct = Math.min((spent / cb.maxAmount) * 100, 100);
+                      let barColor = "#4caf50";
+                      if (pct >= 80) barColor = "#f44336";
+                      else if (pct >= 50) barColor = "#EBC106";
+
+                      return (
+                        <Box key={cb.id}>
+                          <Stack direction="row" justifyContent="space-between" mb={0.5}>
+                            <Typography variant="body2" fontWeight={600}>{cb.category}</Typography>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Typography variant="body2" color="text.secondary">
+                                {currency(spent)} / {currency(cb.maxAmount)}
+                              </Typography>
+                              <Button
+                                size="small"
+                                color="error"
+                                sx={{ minWidth: 0, p: 0, fontSize: 12 }}
+                                onClick={() => handleDeleteCategoryBudget(cb.id)}
+                              >
+                                ✕
+                              </Button>
+                            </Stack>
+                          </Stack>
+                          <LinearProgress
+                            variant="determinate"
+                            value={pct}
+                            sx={{
+                              height: 8,
+                              borderRadius: 4,
+                              backgroundColor: "#e0e0e0",
+                              "& .MuiLinearProgress-bar": { backgroundColor: barColor, borderRadius: 4 }
+                            }}
+                          />
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
+
+          </Stack>
         </Grid>
 
-        {/* ---------------- BOTTOM: Pie Chart ---------------- */}
+        {/* ---------------- RIGHT: Pie Chart ---------------- */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ borderRadius: 3, boxShadow: 5 }}>
+          <Card sx={{ borderRadius: 3, boxShadow: 5, height: "100%" }}>
             <CardContent>
               <Typography variant="h6" fontWeight={700}>Spending Overview</Typography>
               <Divider sx={{ my: 2 }} />
 
-              <Box sx={{ width: "100%", height: 400 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={130}
-                      labelLine={true}
-                      label={renderCustomLabel}
-                    >
-                      {pieData.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </Box>
+              {pieData.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  No expense data for this month yet.
+                </Typography>
+              ) : (
+                <Box sx={{ width: "100%", height: 400 }}>
+                  <ResponsiveContainer>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        outerRadius={130}
+                        labelLine={true}
+                        label={renderCustomLabel}
+                      >
+                        {pieData.map((_, i) => (
+                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -291,6 +428,46 @@ export default function Budgets() {
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
           <Button variant="contained" sx={{ backgroundColor: "green" }} onClick={handleSaveBudget}>
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ---------------- Add Category Budget Dialog ---------------- */}
+      <Dialog open={openCategoryDialog} onClose={() => setOpenCategoryDialog(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Add Category Budget</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, mt: -1 }}>
+          <TextField
+            select
+            label="Category"
+            fullWidth
+            value={newCatName}
+            onChange={(e) => setNewCatName(e.target.value)}
+            sx={{ mt: 0.8 }}
+            SelectProps={{ native: true }}
+            InputLabelProps={{ shrink: true }}
+          >
+            <option value="">Select a category</option>
+            <option value="Food">Food</option>
+            <option value="Bills">Bills</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Transport">Transport</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Health">Health</option>
+            <option value="Vacation">Vacation</option>
+            <option value="Other">Other</option>
+          </TextField>
+          <TextField
+            label="Budget Amount"
+            type="number"
+            fullWidth
+            value={newCatAmount}
+            onChange={(e) => setNewCatAmount(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCategoryDialog(false)}>Cancel</Button>
+          <Button variant="contained" sx={{ backgroundColor: "green" }} onClick={handleSaveCategoryBudget}>
             Save
           </Button>
         </DialogActions>

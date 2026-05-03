@@ -13,6 +13,7 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import { AuthProvider } from "./AuthContext";
+import AIChatWidget from "./components/AIChatWidget";
 
 export default function App() {
   const location = useLocation();
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
         </Box>
+        <AIChatWidget />
       </Box>
     </AuthProvider>
   );

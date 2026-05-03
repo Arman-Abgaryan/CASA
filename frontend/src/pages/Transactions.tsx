@@ -25,6 +25,7 @@ import { useAuth } from "../AuthContext";
 import AddTransactionModal from "../components/Transactions/AddTransactionModal";
 import ImportCSVModal from "../components/Transactions/ImportCSVModal";
 import TransactionTable from "../components/Transactions/TransactionTable";
+import UploadStatementModal from "../components/Transactions/UploadStatementModal";
 
 const currency = (n: number) =>
   n.toLocaleString(undefined, {
@@ -40,23 +41,18 @@ export default function Transactions() {
   const [dateRange, setDateRange] = useState("This Month");
   const [openModal, setOpenModal] = useState(false);
   const [openImportModal, setOpenImportModal] = useState(false);
+  const [openStatementModal, setOpenStatementModal] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
   const [editSnackbar, setEditSnackbar] = useState(false);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      setTransactions([]);
-    }
+    if (!isLoggedIn) setTransactions([]);
   }, [isLoggedIn]);
 
-  // -----------------------------------------------------
-  // Fetch Transactions
-  // -----------------------------------------------------
   const fetchTransactions = async () => {
     try {
       const res = await api.get("/api/transactions");
-
       const transformed = res.data.map((t: any) => ({
         id: t.id,
         name: t.description,
@@ -66,7 +62,6 @@ export default function Transactions() {
         amount: Number(t.amount),
         type: Number(t.amount) >= 0 ? "income" : "expense",
       }));
-
       setTransactions(transformed);
     } catch (err) {
       console.error("Failed to fetch transactions:", err);
@@ -77,9 +72,6 @@ export default function Transactions() {
     if (isLoggedIn) fetchTransactions();
   }, [isLoggedIn]);
 
-  // -----------------------------------------------------
-  // Delete Single Transactions
-  // -----------------------------------------------------
   async function handleDelete(id: number) {
     try {
       await api.delete(`/api/transactions/${id}`);
@@ -90,9 +82,6 @@ export default function Transactions() {
     }
   }
 
-  // -----------------------------------------------------
-  // Delete Multiple Transactions
-  // -----------------------------------------------------
   async function handleBulkDelete(ids: number[]) {
     try {
       await api.delete("/api/transactions/bulk", { data: ids });
@@ -103,9 +92,7 @@ export default function Transactions() {
       alert("Failed to delete selected transactions");
     }
   }
-  // -----------------------------------------------------
-  // Totals
-  // -----------------------------------------------------
+
   const totalIncome = useMemo(
     () => transactions.filter(t => t.amount > 0).reduce((a, b) => a + b.amount, 0),
     [transactions]
@@ -118,14 +105,7 @@ export default function Transactions() {
 
   const netAmount = totalIncome - totalExpenses;
 
-  // -----------------------------------------------------
-  // Edit Transaction
-  // -----------------------------------------------------
   const [editTx, setEditTx] = useState<any>(null);
-
-  // -----------------------------------------------------
-  // Filter Category
-  // -----------------------------------------------------
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [filterAnchor, setFilterAnchor] = useState<null | HTMLElement>(null);
 
@@ -142,14 +122,14 @@ export default function Transactions() {
       else if (dateRange === "Last Month") {
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1);
         dateMatch = date.getUTCMonth() === lastMonth.getMonth() && date.getUTCFullYear() === lastMonth.getFullYear();
-    }
-    else if (dateRange === "This Year")
-      dateMatch = date.getUTCFullYear() === now.getFullYear();
+      }
+      else if (dateRange === "This Year")
+        dateMatch = date.getUTCFullYear() === now.getFullYear();
 
-    const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(t.category);
-    return dateMatch && categoryMatch;
+      const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(t.category);
+      return dateMatch && categoryMatch;
     });
-  }, [transactions, dateRange, selectedCategories])
+  }, [transactions, dateRange, selectedCategories]);
 
   return (
     <Stack spacing={3}>
@@ -173,10 +153,10 @@ export default function Transactions() {
         <Grid item xs={12} md={3}>
           <Badge badgeContent={selectedCategories.length} color="primary">
             <Button
-              variant = "outlined"
-              startIcon = {<FilterListIcon />}
+              variant="outlined"
+              startIcon={<FilterListIcon />}
               fullWidth
-              sx = {{ height: 40 }}
+              sx={{ height: 40 }}
               onClick={(e) => setFilterAnchor(e.currentTarget)}
             >
               Filter By Category
@@ -188,11 +168,11 @@ export default function Transactions() {
                 prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
               )}>
                 <Checkbox checked={selectedCategories.includes(cat)} size="small" />
-                <ListItemText primary = {cat} />
+                <ListItemText primary={cat} />
               </MenuItem>
             ))}
             <MenuItem onClick={() => setSelectedCategories([])}>
-              <Typography variant = "body2" color = "error"> Clear All </Typography>
+              <Typography variant="body2" color="error">Clear All</Typography>
             </MenuItem>
           </Menu>
         </Grid>
@@ -242,6 +222,7 @@ export default function Transactions() {
             onBulkDelete={handleBulkDelete}
             onOpenAdd={() => setOpenModal(true)}
             onOpenImport={() => setOpenImportModal(true)}
+            onOpenStatement={() => setOpenStatementModal(true)}
             onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
           />
         </Grid>
@@ -250,7 +231,7 @@ export default function Transactions() {
       {/* MODALS */}
       <AddTransactionModal
         open={openModal}
-        onClose={() => { setOpenModal(false); setEditTx(null); }} 
+        onClose={() => { setOpenModal(false); setEditTx(null); }}
         onTransactionAdded={() => {
           fetchTransactions();
           if (editTx) setEditSnackbar(true);
@@ -268,11 +249,19 @@ export default function Transactions() {
         }}
       />
 
+      <UploadStatementModal
+        open={openStatementModal}
+        onClose={() => setOpenStatementModal(false)}
+        onImportComplete={() => {
+          fetchTransactions();
+          setSnackbarOpen(true);
+        }}
+      />
+
       {/* SNACKBARS */}
       <Snackbar open={snackbarOpen} autoHideDuration={3000} onClose={() => setSnackbarOpen(false)}>
         <Alert severity="success" variant="filled">Transaction added!</Alert>
       </Snackbar>
-
       <Snackbar open={deleteSnackbar} autoHideDuration={3000} onClose={() => setDeleteSnackbar(false)}>
         <Alert severity="success" variant="filled">Transaction deleted!</Alert>
       </Snackbar>
