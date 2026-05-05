@@ -15,7 +15,6 @@ import FlagIcon from "@mui/icons-material/Flag";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { NavLink, useLocation } from "react-router-dom";
-import AIChatWidget from "./AIChatWidget";
 
 const drawerWidth = 240;
 
@@ -77,9 +76,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
       <Divider sx={{ my: -0.6, borderColor: "rgba(255,255,255,0.12)" }} />
 
-      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, px: 1, pb: 2, pt: 2 }}>
-        <AIChatWidget />
-      </Box>
+      <Box sx={{ flex: 1 }} />
     </>
   );
 }

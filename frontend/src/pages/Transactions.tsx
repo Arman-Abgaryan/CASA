@@ -7,6 +7,7 @@ import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
 import AddTransactionModal from "../components/Transactions/AddTransactionModal";
 import ImportCSVModal from "../components/Transactions/ImportCSVModal";
+import UploadStatementModal from "../components/Transactions/UploadStatementModal";
 import TransactionTable from "../components/Transactions/TransactionTable";
 import PlaidLinkButton from "../components/Transactions/PlaidLinkButton";
 import SyncBankButton from "../components/Transactions/SyncBankButton";
@@ -21,6 +22,7 @@ export default function Transactions() {
   const [dateRange, setDateRange] = useState("This Month");
   const [openModal, setOpenModal] = useState(false);
   const [openImportModal, setOpenImportModal] = useState(false);
+  const [openStatementModal, setOpenStatementModal] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [deleteSnackbar, setDeleteSnackbar] = useState(false);
   const [editSnackbar, setEditSnackbar] = useState(false);
@@ -46,7 +48,6 @@ export default function Transactions() {
           name: t.description,
           category: t.category,
           date: t.date,
-          // Older rows in the database may not have a bankName yet.
           bankName: t.bankName || "Manual",
           amount: Number(t.amount),
           type: Number(t.amount) >= 0 ? "income" : "expense",
@@ -100,6 +101,25 @@ export default function Transactions() {
   const totalIncome = useMemo(() => filteredTransactions.filter((t) => t.amount > 0).reduce((a, b) => a + b.amount, 0), [filteredTransactions]);
   const totalExpenses = useMemo(() => filteredTransactions.filter((t) => t.amount < 0).reduce((a, b) => a + Math.abs(b.amount), 0), [filteredTransactions]);
   const netAmount = totalIncome - totalExpenses;
+
+  // Distinct bank names across ALL transactions (not just filtered) so the
+  // edit-modal autocomplete shows every bank the user has, regardless of
+  // current date/category filters.
+  const uniqueBankNames = useMemo(() => {
+    const set = new Set<string>();
+    transactions.forEach((t) => {
+      if (t.bankName) set.add(t.bankName);
+    });
+    set.add("Manual");
+    return Array.from(set).sort();
+  }, [transactions]);
+
+  // Single handler for closing the modal: clear edit target so a fresh "Add"
+  // click after closing doesn't accidentally reopen with old edit data.
+  const closeAddModal = () => {
+    setOpenModal(false);
+    setEditTx(null);
+  };
 
   return (
     <AnimatedPage>
@@ -172,17 +192,40 @@ export default function Transactions() {
             <Card variant="outlined" sx={{ borderRadius: 3, height: "100%" }}><CardContent><Typography fontWeight={800}>Net Amount</Typography><Typography variant="h5" fontWeight={800} color={netAmount >= 0 ? "success.main" : "error.main"}>{currency(netAmount)}</Typography></CardContent></Card>
           </Grid>
           <Grid item xs={12}>
-            <TransactionTable transactions={filteredTransactions} onDelete={handleDelete} onBulkDelete={handleBulkDelete} onOpenAdd={() => setOpenModal(true)} onOpenImport={() => setOpenImportModal(true)} onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }} />
+            <TransactionTable
+              transactions={filteredTransactions}
+              onDelete={handleDelete}
+              onBulkDelete={handleBulkDelete}
+              onOpenAdd={() => { setEditTx(null); setOpenModal(true); }}
+              onOpenImport={() => setOpenImportModal(true)}
+              onOpenStatement={() => setOpenStatementModal(true)}
+              onEdit={(tx) => { setEditTx(tx); setOpenModal(true); }}
+            />
           </Grid>
         </Grid>
 
-        <AddTransactionModal
-          open={openModal}
-          onClose={() => { setOpenModal(false); setEditTx(null); }}
-          onTransactionAdded={() => { fetchTransactions(); editTx ? setEditSnackbar(true) : setSnackbarOpen(true); }}
-          editTransaction={editTx}
-        />
+        {/*
+          The `key` prop forces a fresh mount of the modal whenever the edit
+          target changes, OR when switching between Add (no editTx) and Edit.
+          That guarantees the lazy useState initializer in the modal sees the
+          correct editTransaction and avoids any stale state between opens.
+        */}
+        {openModal && (
+          <AddTransactionModal
+            key={editTx?.id ?? "new"}
+            open={openModal}
+            onClose={closeAddModal}
+            onTransactionAdded={() => { fetchTransactions(); editTx ? setEditSnackbar(true) : setSnackbarOpen(true); }}
+            editTransaction={editTx}
+            bankNames={uniqueBankNames}
+          />
+        )}
         <ImportCSVModal open={openImportModal} onClose={() => setOpenImportModal(false)} onImportComplete={() => { fetchTransactions(); setSnackbarOpen(true); }} />
+        <UploadStatementModal
+          open={openStatementModal}
+          onClose={() => setOpenStatementModal(false)}
+          onImportComplete={() => { fetchTransactions(); setSnackbarOpen(true); }}
+        />
         <ManageBanksButton
           open={manageBanksOpen}
           onClose={() => setManageBanksOpen(false)}

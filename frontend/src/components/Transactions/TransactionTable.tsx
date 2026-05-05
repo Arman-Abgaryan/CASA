@@ -30,6 +30,7 @@ interface Props {
   onBulkDelete: (ids: number[]) => void;
   onOpenAdd: () => void;
   onOpenImport: () => void;
+  onOpenStatement: () => void;
   onEdit: (tx: Transaction) => void;
 }
 
@@ -43,7 +44,7 @@ const bankChipColor = (name?: string) => {
   return palette[Math.abs(hash) % palette.length];
 };
 
-export default function TransactionTable({ transactions, onDelete, onBulkDelete, onOpenAdd, onOpenImport, onEdit }: Props) {
+export default function TransactionTable({ transactions, onDelete, onBulkDelete, onOpenAdd, onOpenImport, onOpenStatement, onEdit }: Props) {
   const [search, setSearch] = useState("");
   const [selectionMode, setSelectionMode] = useState(false);
   const selection = CheckboxSelection<number>();
@@ -66,6 +67,7 @@ export default function TransactionTable({ transactions, onDelete, onBulkDelete,
             <TextField size="small" placeholder="Search transactions..." value={search} onChange={(e) => setSearch(e.target.value)} sx={{ minWidth: { xs: "100%", sm: 220 } }} />
             <Button variant="contained" onClick={onOpenAdd}>Add Transaction</Button>
             <Button variant="contained" startIcon={<UploadFileIcon />} onClick={onOpenImport}>Import CSV</Button>
+            <Button variant="contained" startIcon={<UploadFileIcon />} onClick={onOpenStatement}>Upload Statement</Button>
             <Button variant="contained" startIcon={<FileDownloadIcon />}>Export</Button>
             <Button variant="contained" color={selectionMode ? "success" : "primary"} onClick={() => { setSelectionMode((prev) => !prev); selection.clear(); }}>
               {selectionMode ? "Done Selecting" : "Select Transactions"}

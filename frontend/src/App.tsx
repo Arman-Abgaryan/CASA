@@ -17,6 +17,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Landing from "./pages/Landing";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AIChatWidget from "./components/AIChatWidget";
 import { AuthProvider } from "./AuthContext";
 
 const publicPaths = ["/", "/login", "/signup", "/forgot-password", "/reset-password"];
@@ -126,6 +127,9 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Box>
+
+        {/* Floating AI advisor — only on protected (signed-in) pages. */}
+        {!isPublicPage && <AIChatWidget />}
       </Box>
     </AuthProvider>
   );

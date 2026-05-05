@@ -61,12 +61,21 @@ The free tier (`gemini-2.5-flash`) gives you 10 requests/minute and 250 requests
 
 ---
 
+## 📄 Claude-powered PDF Statement Upload
+
+In addition to CSV imports, CASA can ingest PDF bank statements directly. The "Upload Statement" button on the Transactions page sends the PDF to Anthropic's Claude API, which extracts every transaction in a structured JSON format that the app then previews before persisting.
+
+This shares the same `ANTHROPIC_API_KEY` that powers Benjamin (the AI advisor), so if Benjamin already works for you, statement upload will too. PDF imports are tagged with `bankName = "Statement Upload"` so they show up clearly in the transactions table and dedupe correctly across re-imports of the same file.
+
+---
+
 ## 🏦 Bank labels on transactions
 
-Every transaction now carries a `bankName`:
+Every transaction carries a `bankName`:
 
 - **Plaid-linked transactions** are labeled with the institution name returned by Plaid (e.g. "Chase").
 - **CSV-imported transactions** are labeled with the bank Gemini detected from the file format.
+- **PDF statement uploads** are labeled `"Statement Upload"`.
 - **Manually-added transactions** are labeled `"Manual"`.
 
 If you're upgrading an existing database, the `bank_name` column will be added automatically by Hibernate (`ddl-auto=update`) but old rows will be `NULL`. The frontend renders `NULL` as `"Manual"`, but for cleanliness you can run:
