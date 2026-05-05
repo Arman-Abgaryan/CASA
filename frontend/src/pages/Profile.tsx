@@ -30,10 +30,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
-<<<<<<< HEAD
 import AnimatedPage from "../components/AnimatedPage";
-=======
->>>>>>> 249ec616b5a77bc9a2e383680cfc336b37d64b2d
 
 const NAV_ITEMS = [
   { key: "profile", label: "My Profile", icon: <PersonOutlineIcon fontSize="small" /> },
@@ -138,29 +135,20 @@ export default function Profile() {
     setChangingPassword(true);
     setPasswordMessage(null);
     try {
-<<<<<<< HEAD
       // Backend exposes this as POST (not PUT). The endpoint also returns a
       // 400 with a JSON `error` field if the current password is wrong, so
       // surface that to the user instead of a generic message when possible.
       await api.post("/api/users/change-password", { currentPassword, newPassword });
-=======
-      await api.put("/api/users/change-password", { currentPassword, newPassword });
->>>>>>> 249ec616b5a77bc9a2e383680cfc336b37d64b2d
       setPasswordMessage({ type: "success", text: "Password updated successfully." });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-<<<<<<< HEAD
     } catch (err: any) {
       const serverMsg = err?.response?.data?.error;
       setPasswordMessage({
         type: "error",
         text: serverMsg || "Current password is incorrect.",
       });
-=======
-    } catch {
-      setPasswordMessage({ type: "error", text: "Current password is incorrect." });
->>>>>>> 249ec616b5a77bc9a2e383680cfc336b37d64b2d
     } finally {
       setChangingPassword(false);
     }
@@ -180,6 +168,7 @@ export default function Profile() {
   };
 
   return (
+    <AnimatedPage>
     <Box>
       <Typography variant="h4" fontWeight={800} mb={3}>Profile</Typography>
 
@@ -408,5 +397,6 @@ export default function Profile() {
         </DialogActions>
       </Dialog>
     </Box>
+    </AnimatedPage>
   );
 }

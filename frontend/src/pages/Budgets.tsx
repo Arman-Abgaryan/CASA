@@ -29,30 +29,7 @@ import {
 import ProgressBar from "../components/ProgressBar";
 import api from "../axiosConfig";
 import { useAuth } from "../AuthContext";
-
-const PIE_COLORS = [
-  "#6EC1E4", "#F5B971", "#9CCC65",
-  "#BA68C8", "#FF8A65", "#4DB6AC"
-];
-
-const currency = (n: number) =>
-  n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-
-const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
-  const RADIAN = Math.PI / 180;
-  const radius = outerRadius + 60;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-  if (percent < 0.02) return null;
-
-  return (
-    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#333" fontFamily="Roboto, sans-serif">
-      <tspan x={x} dy="-0.4em" fontWeight="bold" fill="#333">{`${(percent * 100).toFixed(0)}%`}</tspan>
-      <tspan x={x} dy="1.2em" fill="#666">{name}</tspan>
-    </text>
-  );
-};
+import AnimatedPage from "../components/AnimatedPage";
 
 const PIE_COLORS = [
   "#6EC1E4", "#F5B971", "#9CCC65",
@@ -269,10 +246,7 @@ export default function Budgets() {
   const pieData = Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
 
   return (
-<<<<<<< HEAD
     <AnimatedPage>
-=======
->>>>>>> 249ec616b5a77bc9a2e383680cfc336b37d64b2d
     <Box>
       <Typography variant="h4" fontWeight="bold">Budgets</Typography>
       <Typography variant="body1" color="text.secondary" mb={2}>
@@ -505,5 +479,6 @@ export default function Budgets() {
         <Alert severity="info" variant="filled">Monthly budget has been reset</Alert>
       </Snackbar>
     </Box>
+    </AnimatedPage>
   );
 }
